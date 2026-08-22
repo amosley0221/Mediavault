@@ -13,7 +13,7 @@ val keystoreFile = (System.getenv("MV_KEYSTORE_FILE")?.takeIf { it.isNotBlank() 
     ?: rootProject.file("keystore/mediavault.jks")
 val keystorePassword = System.getenv("MV_KEYSTORE_PASSWORD")?.takeIf { it.isNotBlank() } ?: "mediavault"
 val keyAliasName = System.getenv("MV_KEY_ALIAS")?.takeIf { it.isNotBlank() } ?: "mediavault"
-val keyPassword = System.getenv("MV_KEY_PASSWORD")?.takeIf { it.isNotBlank() } ?: keystorePassword
+val signingKeyPassword = System.getenv("MV_KEY_PASSWORD")?.takeIf { it.isNotBlank() } ?: keystorePassword
 
 android {
     namespace = "com.mediavault.app"
@@ -33,7 +33,7 @@ android {
             storeFile = keystoreFile
             storePassword = keystorePassword
             keyAlias = keyAliasName
-            this.keyPassword = keyPassword
+            keyPassword = signingKeyPassword
         }
     }
 
