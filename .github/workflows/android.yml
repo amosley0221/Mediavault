@@ -1,0 +1,77 @@
+name: Build APK
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Install Android SDK packages
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Build release APK
+        env:
+          MV_VERSION_CODE: ${{ github.run_number }}
+          MV_VERSION_NAME: 1.0.${{ github.run_number }}
+          # Optional: set these repository secrets to sign with your own key instead
+          # of the project keystore that ships in the repo.
+          MV_KEYSTORE_PASSWORD: ${{ secrets.MV_KEYSTORE_PASSWORD }}
+          MV_KEY_ALIAS: ${{ secrets.MV_KEY_ALIAS }}
+          MV_KEY_PASSWORD: ${{ secrets.MV_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+
+      - name: Stage APK
+        id: stage
+        run: |
+          mkdir -p dist
+          APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n1)
+          NAME="MediaVault-1.0.${{ github.run_number }}.apk"
+          cp "$APK" "dist/$NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "path=dist/$NAME" >> "$GITHUB_OUTPUT"
+          ls -lh dist
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MediaVault-apk
+          path: dist/*.apk
+          if-no-files-found: error
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v1.0.${{ github.run_number }}"
+          gh release create "$TAG" "${{ steps.stage.outputs.path }}" \
+            --title "MediaVault 1.0.${{ github.run_number }}" \
+            --notes "Install on Android: download **${{ steps.stage.outputs.name }}** below, open it, and allow installs from your browser or file manager when prompted.
+
+          Built from \`${{ github.ref_name }}\` at \`${{ github.sha }}\`." \
+            --latest

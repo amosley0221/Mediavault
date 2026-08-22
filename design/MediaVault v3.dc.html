@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+body{margin:0;background:#e9e9ee;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;padding:40px}
+a{color:#0a7cff;text-decoration:none}a:hover{color:#3d99ff}
+input{outline:none}
+@keyframes gvfade{from{opacity:0}to{opacity:1}}
+@keyframes gvpop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes gvpulse{0%,100%{opacity:1}50%{opacity:.45}}
+::-webkit-scrollbar{display:none}
+</style>
+</helmet>
+<div style="display:flex;gap:56px;align-items:flex-start;justify-content:center;flex-wrap:wrap;--ac:{{ accent }}">
+<sc-for list="{{ devices }}" as="dev" hint-placeholder-count="2">
+<div style="display:flex;flex-direction:column;gap:14px;align-items:center">
+<div style="font-size:11px;font-weight:600;letter-spacing:2px;color:#86868b">{{ dev.label }}</div>
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" width="{{ dev.frameW }}" height="{{ dev.frameH }}" hint-size="368px,820px">
+<div style="position:relative;height:100%;background:#f5f5f7;color:#1d1d1f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden">
+
+  <sc-if value="{{ dev.showAvatar }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:none;display:flex;justify-content:flex-end;padding:12px 22px 0">
+      <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--ac,#0a7cff),#7cc4ff);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:13px">{{ dev.avatarInitial }}</div>
+    </div>
+  </sc-if>
+
+  <!-- HOME -->
+  <sc-if value="{{ dev.onHome }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1;overflow-y:auto;animation:gvfade .25s ease">
+      <!-- continue watching hero -->
+      <div style="margin:12px 22px 0">
+        <div onClick="{{ dev.hero.play }}" style="position:relative;border-radius:20px;overflow:hidden;cursor:pointer;aspect-ratio:16/8.2;display:flex;align-items:flex-end;background:{{ dev.hero.grad }};box-shadow:0 10px 28px rgba(0,0,0,.14)">
+          <div style="position:absolute;inset:0;background:repeating-linear-gradient(-45deg,rgba(255,255,255,.05) 0 2px,transparent 2px 9px)"></div>
+          <div style="position:absolute;inset:0;background:linear-gradient(transparent 30%,rgba(0,0,0,.62))"></div>
+          <div style="position:absolute;top:12px;left:12px;background:rgba(0,0,0,.4);backdrop-filter:blur(6px);border-radius:99px;padding:3px 10px;font-size:10px;font-weight:700;color:#fff;letter-spacing:.6px">{{ dev.hero.badge }}</div>
+          <div style="position:relative;padding:16px;color:#fff;width:100%;box-sizing:border-box">
+            <div style="font-size:19px;font-weight:700">{{ dev.hero.title }}</div>
+            <div style="font-size:12px;opacity:.85;margin-top:2px">{{ dev.hero.meta }}</div>
+            <div style="height:4px;border-radius:2px;background:rgba(255,255,255,.25);margin-top:10px;overflow:hidden"><div style="height:100%;background:var(--ac,#0a7cff);width:{{ dev.hero.progress }}"></div></div>
+          </div>
+          <div style="position:absolute;right:14px;bottom:44px;width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;font-size:17px;color:#1d1d1f;box-shadow:0 6px 16px rgba(0,0,0,.3)">▶</div>
+        </div>
+      </div>
+      <!-- rows -->
+      <sc-for list="{{ dev.homeRows }}" as="row" hint-placeholder-count="4">
+        <div style="margin-top:20px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;padding:0 22px 10px">
+            <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#86868b">{{ row.title }}</div>
+            <div onClick="{{ row.more }}" style="font-size:11.5px;font-weight:600;color:var(--ac,#0a7cff);cursor:pointer">{{ row.moreLabel }}</div>
+          </div>
+          <div style="display:flex;gap:12px;overflow-x:auto;padding:2px 22px 6px">
+            <sc-for list="{{ row.items }}" as="it" hint-placeholder-count="5">
+              <div onClick="{{ it.click }}" style="flex:none;width:{{ row.cardW }};cursor:pointer">
+                <div style="aspect-ratio:{{ row.ratio }};border-radius:12px;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;background:{{ it.grad }};box-shadow:0 4px 12px rgba(0,0,0,.10)">
+                  <div style="position:absolute;inset:0;background:repeating-linear-gradient(-45deg,rgba(255,255,255,.06) 0 2px,transparent 2px 9px)"></div>
+                  <span style="position:relative;font-size:22px;font-weight:800;color:rgba(255,255,255,.92)">{{ it.letter }}</span>
+                  <sc-if value="{{ it.live }}" hint-placeholder-val="{{ false }}">
+                    <div style="position:absolute;top:8px;left:8px;background:#e0245e;border-radius:5px;padding:2px 7px;font-size:9px;font-weight:800;color:#fff;letter-spacing:.5px;animation:gvpulse 2s infinite">LIVE</div>
+                  </sc-if>
+                  <sc-if value="{{ it.tag }}" hint-placeholder-val="{{ false }}">
+                    <div style="position:absolute;bottom:6px;left:6px;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);border-radius:5px;padding:2px 7px;font-size:8.5px;font-weight:700;color:#fff;letter-spacing:.4px">{{ it.tag }}</div>
+                  </sc-if>
+                </div>
+                <div style="font-size:11.5px;font-weight:600;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.title }}</div>
+                <div style="font-size:10px;color:#86868b;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.sub }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-for>
+      <div style="height:90px"></div>
+    </div>
+  </sc-if>
+
+  <!-- LIBRARY -->
+  <sc-if value="{{ dev.onLib }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;overflow-y:auto;animation:gvfade .25s ease">
+      <div style="display:flex;gap:8px;overflow-x:auto;padding:14px 22px 4px">
+        <sc-for list="{{ dev.cats }}" as="cat" hint-placeholder-count="5">
+          <button onClick="{{ cat.onClick }}" style="{{ cat.style }}">{{ cat.label }}</button>
+        </sc-for>
+      </div>
+      <!-- grid media -->
+      <sc-if value="{{ dev.libIsGrid }}" hint-placeholder-val="{{ true }}">
+        <div style="{{ dev.libGridStyle }}">
+          <sc-for list="{{ dev.libItems }}" as="it" hint-placeholder-count="9">
+            <div onClick="{{ it.click }}" style="cursor:pointer;animation:gvpop .3s ease both">
+              <div style="aspect-ratio:2/3;border-radius:12px;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;background:{{ it.grad }};box-shadow:0 4px 12px rgba(0,0,0,.10)">
+                <div style="position:absolute;inset:0;background:repeating-linear-gradient(-45deg,rgba(255,255,255,.06) 0 2px,transparent 2px 9px)"></div>
+                <span style="position:relative;font-size:24px;font-weight:800;color:rgba(255,255,255,.92)">{{ it.letter }}</span>
+                <sc-if value="{{ it.tag }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;bottom:6px;left:6px;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);border-radius:5px;padding:2px 7px;font-size:8.5px;font-weight:700;color:#fff;letter-spacing:.4px">{{ it.tag }}</div>
+                </sc-if>
+              </div>
+              <div style="font-size:11.5px;font-weight:600;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.title }}</div>
+              <div style="font-size:10px;color:#86868b;margin-top:1px">{{ it.sub }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <!-- row media (music, files) -->
+      <sc-if value="{{ dev.libIsRows }}" hint-placeholder-val="{{ false }}">
+        <div style="{{ dev.libRowsStyle }}">
+          <sc-for list="{{ dev.libRows }}" as="r" hint-placeholder-count="8">
+            <div onClick="{{ r.click }}" style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:10px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer;animation:gvpop .25s ease both">
+              <div style="width:40px;height:40px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:{{ r.iconColor }};background:{{ r.iconBg }}">{{ r.icon }}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.title }}</div>
+                <div style="font-size:11px;color:#86868b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.sub }}</div>
+              </div>
+              <div style="font-size:10.5px;font-weight:600;color:#86868b;flex:none">{{ r.right }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <!-- MEDIA DETAIL -->
+  <sc-if value="{{ dev.onMedia }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;overflow-y:auto;animation:gvfade .25s ease">
+      <div style="height:180px;position:relative;display:flex;align-items:center;justify-content:center;background:{{ dev.md.grad }}">
+        <div style="position:absolute;inset:0;background:repeating-linear-gradient(-45deg,rgba(255,255,255,.06) 0 2px,transparent 2px 9px)"></div>
+        <span style="font-size:54px;font-weight:800;color:rgba(255,255,255,.92);position:relative;text-shadow:0 2px 14px rgba(0,0,0,.25)">{{ dev.md.letter }}</span>
+        <div style="position:absolute;inset:auto 0 0 0;height:90px;background:linear-gradient(transparent,#f5f5f7)"></div>
+        <button onClick="{{ dev.md.back }}" style="position:absolute;top:12px;left:14px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.8);backdrop-filter:blur(8px);color:#1d1d1f;border:none;font-size:17px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.1)">‹</button>
+      </div>
+      <div style="{{ dev.mdCols }}">
+        <div>
+          <div style="font-size:24px;font-weight:700;letter-spacing:-0.5px">{{ dev.md.title }}</div>
+          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
+            <span style="background:#fff;border:1px solid rgba(0,0,0,.07);border-radius:99px;padding:4px 11px;font-size:11px;font-weight:600;color:var(--ac,#0a7cff)">{{ dev.md.tag }}</span>
+            <span style="font-size:12px;color:#86868b">{{ dev.md.meta }}</span>
+          </div>
+          <div style="font-size:13px;line-height:1.55;color:#5b5b60;margin-top:12px;text-wrap:pretty">{{ dev.md.synopsis }}</div>
+          <button onClick="{{ dev.md.play }}" style="width:100%;margin-top:14px;background:var(--ac,#0a7cff);color:#fff;border:none;border-radius:99px;padding:14px;font-weight:700;font-size:14.5px;font-family:inherit;cursor:pointer;box-shadow:0 6px 18px color-mix(in oklab,var(--ac,#0a7cff) 30%,transparent)">{{ dev.md.playLabel }}</button>
+          <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#86868b;margin:20px 0 10px">CAST</div>
+          <div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:4px">
+            <sc-for list="{{ dev.md.cast }}" as="c" hint-placeholder-count="4">
+              <div style="flex:none;width:64px;text-align:center">
+                <div style="width:52px;height:52px;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#fff;background:{{ c.grad }}">{{ c.initials }}</div>
+                <div style="font-size:10px;font-weight:600;margin-top:5px;line-height:1.25">{{ c.name }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-size:10.5px;color:#b0b0b6;margin:16px 0 20px">Matched from TMDB · <span style="color:var(--ac,#0a7cff);font-weight:600;cursor:pointer">Fix match</span></div>
+        </div>
+        <div>
+          <sc-if value="{{ dev.md.isShow }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;gap:8px;margin:20px 0 10px;align-items:center">
+              <sc-for list="{{ dev.md.seasonChips }}" as="sn" hint-placeholder-count="2">
+                <button onClick="{{ sn.onClick }}" style="{{ sn.style }}">{{ sn.label }}</button>
+              </sc-for>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;padding-bottom:30px">
+              <sc-for list="{{ dev.md.episodes }}" as="ep" hint-placeholder-count="5">
+                <div onClick="{{ ep.play }}" style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:10px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer;animation:gvpop .25s ease both">
+                  <div style="width:34px;height:34px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--ac,#0a7cff);background:color-mix(in oklab,var(--ac,#0a7cff) 12%,#fff)">{{ ep.n }}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ ep.t }}</div>
+                    <div style="font-size:11px;color:#86868b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ ep.sub }}</div>
+                    <sc-if value="{{ ep.started }}" hint-placeholder-val="{{ false }}">
+                      <div style="height:3px;border-radius:2px;background:rgba(0,0,0,.07);margin-top:6px;overflow:hidden;max-width:160px"><div style="height:100%;background:var(--ac,#0a7cff);width:{{ ep.pct }}"></div></div>
+                    </sc-if>
+                  </div>
+                  <sc-if value="{{ ep.watched }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size:12px;color:#34c759;flex:none">✓</span>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ dev.md.isMovie }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#86868b;margin:20px 0 10px">IN COLLECTION</div>
+            <div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:30px">
+              <sc-for list="{{ dev.md.related }}" as="rel" hint-placeholder-count="3">
+                <div onClick="{{ rel.click }}" style="flex:none;width:96px;cursor:pointer">
+                  <div style="aspect-ratio:2/3;border-radius:12px;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;background:{{ rel.grad }};box-shadow:0 4px 12px rgba(0,0,0,.10)">
+                    <div style="position:absolute;inset:0;background:repeating-linear-gradient(-45deg,rgba(255,255,255,.06) 0 2px,transparent 2px 9px)"></div>
+                    <span style="position:relative;font-size:20px;font-weight:800;color:rgba(255,255,255,.92)">{{ rel.letter }}</span>
+                  </div>
+                  <div style="font-size:11px;font-weight:600;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ rel.title }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- LIVE -->
+  <sc-if value="{{ dev.onLive }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;overflow-y:auto;animation:gvfade .25s ease">
+      <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#86868b;padding:16px 22px 10px">TWITCH · CHANNELS YOU FOLLOW</div>
+      <div style="{{ dev.liveGridStyle }}">
+        <sc-for list="{{ dev.twitch }}" as="tw" hint-placeholder-count="4">
+          <div onClick="{{ tw.click }}" style="cursor:pointer;animation:gvpop .25s ease both">
+            <div style="aspect-ratio:16/9;border-radius:12px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;background:{{ tw.grad }};box-shadow:0 4px 12px rgba(0,0,0,.10)">
+              <div style="position:absolute;inset:0;background:repeating-linear-gradient(-45deg,rgba(255,255,255,.06) 0 2px,transparent 2px 9px)"></div>
+              <span style="font-size:20px;font-weight:800;color:rgba(255,255,255,.92);position:relative">{{ tw.letter }}</span>
+              <div style="position:absolute;top:8px;left:8px;background:#e0245e;border-radius:5px;padding:2px 7px;font-size:9px;font-weight:800;color:#fff;animation:gvpulse 2s infinite">LIVE</div>
+              <div style="position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,.55);border-radius:5px;padding:2px 7px;font-size:9px;font-weight:700;color:#fff">{{ tw.viewers }}</div>
+            </div>
+            <div style="font-size:12px;font-weight:600;margin-top:6px">{{ tw.channel }}</div>
+            <div style="font-size:10.5px;color:#86868b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ tw.game }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#86868b;padding:18px 22px 10px">YOUTUBE TV · ON NOW</div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:0 22px 90px">
+        <sc-for list="{{ dev.yttv }}" as="ch" hint-placeholder-count="4">
+          <div onClick="{{ ch.click }}" style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:10px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer">
+            <div style="width:44px;height:44px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;background:{{ ch.grad }}">{{ ch.abbr }}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ ch.program }}</div>
+              <div style="font-size:11px;color:#86868b">{{ ch.channel }} · {{ ch.time }}</div>
+            </div>
+            <div style="width:44px;flex:none"><div style="height:4px;border-radius:2px;background:rgba(0,0,0,.07);overflow:hidden"><div style="height:100%;background:#e0245e;width:{{ ch.pct }}"></div></div></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- SETTINGS / SOURCES -->
+  <sc-if value="{{ dev.onSettings }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;overflow-y:auto;animation:gvfade .25s ease">
+      <div style="{{ dev.setCols }}">
+        <div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#86868b;margin:18px 0 10px">WATCHED FOLDERS</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <sc-for list="{{ dev.folderRows }}" as="f" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:10px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+                <div style="width:34px;height:34px;border-radius:9px;background:color-mix(in oklab,var(--ac,#0a7cff) 12%,#fff);display:flex;align-items:center;justify-content:center;font-size:14px;flex:none">📁</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:12.5px;font-weight:600;font-family:ui-monospace,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ f.path }}</div>
+                  <div style="font-size:10.5px;color:#86868b">{{ f.meta }}</div>
+                </div>
+                <button onClick="{{ f.remove }}" style="background:rgba(0,0,0,.05);border:none;color:#86868b;border-radius:99px;width:26px;height:26px;font-size:13px;cursor:pointer;flex:none">×</button>
+              </div>
+            </sc-for>
+          </div>
+          <button onClick="{{ dev.addFolder }}" style="width:100%;margin-top:10px;background:#fff;border:1px dashed rgba(0,0,0,.18);color:var(--ac,#0a7cff);border-radius:14px;padding:12px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">+ Add a folder to watch</button>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#86868b;margin:18px 0 10px">USERS</div>
+          <div style="background:#fff;border-radius:14px;box-shadow:0 1px 4px rgba(0,0,0,.05);padding:4px 0">
+            <sc-for list="{{ dev.userRows }}" as="u" hint-placeholder-count="1">
+              <div style="display:flex;align-items:center;gap:12px;padding:9px 14px">
+                <div style="width:32px;height:32px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;background:{{ u.grad }}">{{ u.initial }}</div>
+                <div style="flex:1"><div style="font-size:13px;font-weight:600">{{ u.name }}</div><div style="font-size:10.5px;color:#86868b">{{ u.role }}</div></div>
+                <sc-if value="{{ u.removable }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ u.remove }}" style="background:rgba(0,0,0,.05);border:none;color:#86868b;border-radius:99px;width:26px;height:26px;font-size:13px;cursor:pointer;flex:none">×</button>
+                </sc-if>
+              </div>
+            </sc-for>
+            <div style="padding:4px 10px 8px">
+              <button onClick="{{ dev.addUser }}" style="width:100%;background:transparent;border:1px dashed rgba(0,0,0,.18);color:var(--ac,#0a7cff);border-radius:11px;padding:9px;font-weight:700;font-size:12px;font-family:inherit;cursor:pointer">+ Add a user</button>
+            </div>
+          </div>
+          <div style="font-size:10.5px;color:#86868b;margin-top:8px;line-height:1.5">With one user, MediaVault skips profiles entirely. Add a second user and a profile switcher appears in the header.</div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#86868b;margin:18px 0 10px">CONNECTED SERVICES</div>
+          <div style="display:flex;flex-direction:column;gap:8px;padding-bottom:90px">
+            <sc-for list="{{ dev.serviceRows }}" as="s" hint-placeholder-count="6">
+              <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:11px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+                <div style="width:34px;height:34px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;background:{{ s.grad }}">{{ s.abbr }}</div>
+                <div style="flex:1"><div style="font-size:13px;font-weight:600">{{ s.name }}</div><div style="font-size:11px;color:#86868b">{{ s.desc }}</div></div>
+                <button onClick="{{ s.toggle }}" style="{{ s.btnStyle }}">{{ s.btnLabel }}</button>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- BOTTOM NAV -->
+  <div style="flex:none;display:flex;background:rgba(245,245,247,.88);backdrop-filter:blur(16px);border-top:1px solid rgba(0,0,0,.06);padding:6px 10px 4px;position:relative;z-index:4">
+    <sc-for list="{{ dev.tabs }}" as="tab" hint-placeholder-count="4">
+      <button onClick="{{ tab.onClick }}" style="{{ tab.style }}"><span style="font-size:16px">{{ tab.glyph }}</span><span style="font-size:10px;font-weight:600;letter-spacing:.4px">{{ tab.label }}</span></button>
+    </sc-for>
+  </div>
+
+  <!-- NOW PLAYING MINI BAR (music) -->
+  <sc-if value="{{ dev.track }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:12px;right:12px;bottom:64px;background:rgba(29,29,31,.95);backdrop-filter:blur(12px);border-radius:16px;padding:10px 14px;display:flex;align-items:center;gap:12px;color:#fff;z-index:5;box-shadow:0 10px 28px rgba(0,0,0,.3);animation:gvpop .25s ease">
+      <div style="width:36px;height:36px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;background:{{ dev.trackGrad }}">♪</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ dev.track }}</div>
+        <div style="font-size:10.5px;opacity:.65">{{ dev.trackSub }}</div>
+      </div>
+      <button onClick="{{ dev.togglePlay }}" style="width:32px;height:32px;border-radius:50%;background:#fff;color:#1d1d1f;border:none;font-size:12px;cursor:pointer;flex:none">{{ dev.playGlyph }}</button>
+      <button onClick="{{ dev.closeTrack }}" style="background:transparent;border:none;color:rgba(255,255,255,.6);font-size:15px;cursor:pointer;flex:none">×</button>
+    </div>
+  </sc-if>
+
+  <!-- IN-APP PLAYER -->
+  <sc-if value="{{ dev.player }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;background:#000;display:flex;flex-direction:column;z-index:8;animation:gvfade .25s ease">
+      <div style="flex:1;position:relative;display:flex;align-items:center;justify-content:center;background:{{ dev.playerGrad }}">
+        <div style="position:absolute;inset:0;background:repeating-linear-gradient(-45deg,rgba(255,255,255,.04) 0 2px,transparent 2px 9px)"></div>
+        <div style="position:absolute;inset:0;background:rgba(0,0,0,.35)"></div>
+        <div style="width:66px;height:66px;border-radius:50%;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;font-size:24px;color:#1d1d1f;position:relative;cursor:pointer">▶</div>
+        <button onClick="{{ dev.closePlayer }}" style="position:absolute;top:14px;left:14px;width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.45);backdrop-filter:blur(6px);color:#fff;border:none;font-size:16px;cursor:pointer">×</button>
+        <div style="position:absolute;top:16px;right:14px;background:rgba(0,0,0,.45);backdrop-filter:blur(6px);border-radius:99px;padding:5px 12px;font-size:10.5px;font-weight:700;color:#fff">MediaVault Player</div>
+      </div>
+      <div style="background:#0d0d0f;color:#fff;padding:16px 20px 22px">
+        <div style="font-size:16px;font-weight:700">{{ dev.playerTitle }}</div>
+        <div style="font-size:11.5px;opacity:.6;margin-top:2px">{{ dev.playerMeta }}</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:14px">
+          <span style="font-size:10px;opacity:.6;font-family:ui-monospace,monospace">{{ dev.playerAt }}</span>
+          <div style="flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.15);overflow:hidden"><div style="height:100%;background:var(--ac,#0a7cff);width:{{ dev.playerPct }}"></div></div>
+          <span style="font-size:10px;opacity:.6;font-family:ui-monospace,monospace">{{ dev.playerLen }}</span>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:14px">
+          <button onClick="{{ dev.openExternal }}" style="flex:1;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:99px;padding:10px;font-weight:600;font-size:12px;font-family:inherit;cursor:pointer">{{ dev.externalLabel }}</button>
+          <button style="flex:none;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:99px;padding:10px 16px;font-weight:600;font-size:12px;font-family:inherit;cursor:pointer">CC</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- TOAST -->
+  <sc-if value="{{ dev.toast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:50%;transform:translateX(-50%);bottom:70px;background:#1d1d1f;color:#fff;border-radius:99px;padding:10px 18px;font-size:12.5px;font-weight:600;white-space:nowrap;animation:gvpop .25s ease;z-index:9;box-shadow:0 8px 24px rgba(0,0,0,.25)">{{ dev.toast }}</div>
+  </sc-if>
+
+</div>
+</x-import>
+<div style="font-size:11px;color:#9a9aa2">{{ dev.caption }}</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1260, &quot;height&quot;: 980}, &quot;accent&quot;: {&quot;editor&quot;: &quot;color&quot;, &quot;default&quot;: &quot;#0a7cff&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;options&quot;: [&quot;#0a7cff&quot;, &quot;#7ab8ff&quot;, &quot;#ff6b3d&quot;, &quot;#a06bff&quot;]}, &quot;showUnfolded&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const G = (a, b) => 'linear-gradient(135deg,' + a + ',' + b + ')';
+    this.GAMES = [
+      { t: 'Tears of the Kingdom', sub: 'Yuzu · 63 h', grad: G('#386641', '#a7c957'), l: 'TK', tag: 'YUZU' },
+      { t: 'Stardew Valley', sub: 'Play Store · 88 h', grad: G('#606c38', '#dda15e'), l: 'SV', tag: 'PLAY' },
+      { t: 'Breath of the Wild', sub: 'Cemu · 47 h', grad: G('#1f6f54', '#8fd0a0'), l: 'Z', tag: 'CEMU' },
+      { t: 'Hades', sub: 'Yuzu · 41 h', grad: G('#10002b', '#c77dff'), l: 'H', tag: 'YUZU' },
+      { t: 'Balatro', sub: 'Play Store · 35 h', grad: G('#240046', '#ff5d8f'), l: 'B', tag: 'PLAY' },
+      { t: 'Elden Ring', sub: 'Moonlight · 71 h', grad: G('#582f0e', '#e6ccb2'), l: 'ER', tag: 'STREAM' },
+    ];
+    this.MOVIES = [
+      { t: 'Dune: Part Two', sub: '2024 · Plex', grad: G('#7c4a03', '#e8b464'), l: 'D', tag: 'PLEX', src: 'plex', len: '2:46', at: '1:12', pct: 43 },
+      { t: 'Spirited Away', sub: '2001 · Local', grad: G('#155e63', '#76c7c0'), l: 'S', tag: 'LOCAL', src: 'local', len: '2:05', at: '0:00', pct: 0 },
+      { t: 'The Batman', sub: '2022 · Plex', grad: G('#1a1a1d', '#b3122e'), l: 'B', tag: 'PLEX', src: 'plex', len: '2:56', at: '0:38', pct: 22 },
+      { t: 'Interstellar', sub: '2014 · Local', grad: G('#0b2545', '#8da9c4'), l: 'I', tag: 'LOCAL', src: 'local', len: '2:49', at: '0:00', pct: 0 },
+      { t: 'Oppenheimer', sub: '2023 · Netflix', grad: G('#3d0000', '#ff7b00'), l: 'O', tag: 'NETFLIX', src: 'Netflix', len: '3:00', at: '0:00', pct: 0 },
+      { t: 'Past Lives', sub: '2023 · Plex', grad: G('#31572c', '#90a955'), l: 'P', tag: 'PLEX', src: 'plex', len: '1:46', at: '0:00', pct: 0 },
+    ];
+    this.SHOWS = [
+      { t: 'Severance', sub: 'S2 E7 · Apple TV+', grad: G('#0f4c5c', '#9bd1d4'), l: 'S', tag: 'ATV+', src: 'Apple TV+', len: '0:52', at: '0:31', pct: 60 },
+      { t: 'The Bear', sub: 'S3 E2 · Hulu', grad: G('#5c0a0a', '#f2c14e'), l: 'B', tag: 'HULU', src: 'Hulu', len: '0:34', at: '0:00', pct: 0 },
+      { t: 'Andor', sub: 'S2 E4 · Plex DVR', grad: G('#22333b', '#c6ac8f'), l: 'A', tag: 'PLEX', src: 'plex', len: '0:48', at: '0:12', pct: 25 },
+      { t: 'Planet Earth III', sub: 'E5 · Local', grad: G('#1b4332', '#95d5b2'), l: 'P', tag: 'LOCAL', src: 'local', len: '0:58', at: '0:00', pct: 0 },
+    ];
+    this.MUSIC = [
+      { t: 'Motion', sub: 'Ben Howard · Local FLAC', icon: '♪', right: '4:12' },
+      { t: 'Weird Fishes', sub: 'Radiohead · Local FLAC', icon: '♪', right: '5:18' },
+      { t: 'Nights', sub: 'Frank Ocean · Plex', icon: '♪', right: '5:07' },
+      { t: 'Time', sub: 'Hans Zimmer · Local', icon: '♪', right: '4:35' },
+      { t: 'Redbone', sub: 'Childish Gambino · Plex', icon: '♪', right: '5:26' },
+    ];
+    this.FILES = [
+      { t: 'Budget 2026.xlsx', sub: 'Documents · 214 KB · edited Tue', icon: 'X', app: 'Excel', bg: '#e7f4ec', color: '#1d6f42' },
+      { t: 'Lease agreement.docx', sub: 'Downloads · 88 KB · Aug 12', icon: 'W', app: 'Word', bg: '#e8effc', color: '#2b579a' },
+      { t: 'Fold8 receipt.pdf', sub: 'Downloads · 1.2 MB · Aug 3', icon: 'P', app: 'Drive PDF viewer', bg: '#fdeaea', color: '#c9302c' },
+      { t: 'Game backlog.xlsx', sub: 'Documents · 96 KB · Jul 28', icon: 'X', app: 'Excel', bg: '#e7f4ec', color: '#1d6f42' },
+      { t: 'Trip itinerary.docx', sub: 'Documents · 132 KB · Jul 20', icon: 'W', app: 'Word', bg: '#e8effc', color: '#2b579a' },
+    ];
+    this.TWITCH = [
+      { channel: 'CohhCarnage', game: 'Elden Ring: Nightreign', viewers: '18.2K', grad: G('#3c096c', '#9d4edd'), l: 'C' },
+      { channel: 'Northernlion', game: 'Balatro', viewers: '9.4K', grad: G('#240046', '#ff5d8f'), l: 'N' },
+      { channel: 'DougDoug', game: 'Just Chatting', viewers: '22.1K', grad: G('#014f86', '#89c2d9'), l: 'D' },
+      { channel: 'LilyPichu', game: 'Stardew Valley', viewers: '6.8K', grad: G('#606c38', '#dda15e'), l: 'L' },
+    ];
+    this.YTTV = [
+      { channel: 'ESPN', program: 'College Football: Michigan vs Texas', time: '7:00–10:30 PM', pct: 45, abbr: 'ES', grad: G('#8d0801', '#e5383b') },
+      { channel: 'Food Network', program: 'Diners, Drive-Ins and Dives', time: '8:00–8:30 PM', pct: 70, abbr: 'FN', grad: G('#bc6c25', '#ffc971') },
+      { channel: 'Discovery', program: 'Expedition Unknown', time: '8:00–9:00 PM', pct: 35, abbr: 'DS', grad: G('#023e8a', '#48cae4') },
+      { channel: 'Comedy Central', program: 'The Office marathon', time: '6:00–11:00 PM', pct: 55, abbr: 'CC', grad: G('#3a0ca3', '#b5179e') },
+    ];
+    this.YT = [
+      { t: 'I beat Elden Ring with a dance pad', sub: 'MissMikkaa · 2 h ago · 24:11', grad: G('#582f0e', '#e6ccb2'), l: '▶' },
+      { t: 'Fold 8 long-term review', sub: 'MKBHD · 5 h ago · 14:02', grad: G('#1d1d1f', '#6c757d'), l: '▶' },
+      { t: 'The history of GameCube emulation', sub: 'MVG · 1 day ago · 19:47', grad: G('#5a189a', '#48bfe3'), l: '▶' },
+      { t: 'Balatro but every joker is legendary', sub: 'Northernlion · 1 day ago · 31:20', grad: G('#240046', '#ff5d8f'), l: '▶' },
+    ];
+    this.SERVICES = [
+      { name: 'Plex', desc: 'Movies, TV & music from your server', abbr: 'PX', grad: G('#3c3703', '#e5a00d') },
+      { name: 'Twitch', desc: 'Live channels you follow', abbr: 'TW', grad: G('#4b0082', '#9146ff') },
+      { name: 'YouTube', desc: 'New videos from subscriptions', abbr: 'YT', grad: G('#7a0000', '#ff0000') },
+      { name: 'YouTube TV', desc: 'Live guide · what\u2019s on now', abbr: 'TV', grad: G('#7a0000', '#ff4d4d') },
+      { name: 'Netflix', desc: 'Deep-link titles into the app', abbr: 'NF', grad: G('#3d0000', '#e50914') },
+      { name: 'Moonlight', desc: 'Stream games from your PC', abbr: 'ML', grad: G('#1b3a4b', '#7ad9f5') },
+    ];
+    this.META = {
+      'Dune: Part Two': { year: 2024, genre: 'Sci-fi', rating: 'PG-13', syn: 'Paul Atreides unites with the Fremen and seeks revenge against the conspirators who destroyed his family, facing a choice between the love of his life and the fate of the universe.', cast: ['Timothée Chalamet', 'Zendaya', 'Rebecca Ferguson', 'Austin Butler', 'Javier Bardem'], coll: ['Dune (2021)'] },
+      'Spirited Away': { year: 2001, genre: 'Animation', rating: 'PG', syn: 'A ten-year-old girl wanders into a world of spirits and must work in a bathhouse for the gods to free herself and her parents.', cast: ['Rumi Hiiragi', 'Miyu Irino', 'Mari Natsuki'], coll: ['Princess Mononoke', 'Howl\u2019s Moving Castle'] },
+      'The Batman': { year: 2022, genre: 'Crime', rating: 'PG-13', syn: 'In his second year fighting crime, Batman uncovers corruption in Gotham while pursuing the Riddler, a serial killer targeting the city\u2019s elite.', cast: ['Robert Pattinson', 'Zoë Kravitz', 'Paul Dano', 'Colin Farrell'], coll: [] },
+      'Interstellar': { year: 2014, genre: 'Sci-fi', rating: 'PG-13', syn: 'With Earth becoming uninhabitable, a team of explorers travels through a wormhole in search of a new home for humanity.', cast: ['Matthew McConaughey', 'Anne Hathaway', 'Jessica Chastain'], coll: [] },
+      'Oppenheimer': { year: 2023, genre: 'Biography', rating: 'R', syn: 'The story of J. Robert Oppenheimer and the development of the atomic bomb.', cast: ['Cillian Murphy', 'Emily Blunt', 'Robert Downey Jr.'], coll: [] },
+      'Past Lives': { year: 2023, genre: 'Drama', rating: 'PG-13', syn: 'Two childhood friends reunite in New York for one fateful week, confronting notions of destiny, love, and the choices that make a life.', cast: ['Greta Lee', 'Teo Yoo', 'John Magaro'], coll: [] },
+      'Severance': { year: 2025, genre: 'Thriller', rating: 'TV-MA', seasons: 2, syn: 'Employees at Lumon Industries have their memories surgically divided between work and personal lives — until an innie starts to question everything.', cast: ['Adam Scott', 'Britt Lower', 'Zach Cherry', 'Patricia Arquette'], eps: [ { n: 1, t: 'Hello, Ms. Cobel', len: '49 min', pct: 100 }, { n: 2, t: 'Goodbye, Mrs. Selvig', len: '44 min', pct: 100 }, { n: 3, t: 'Who Is Alive?', len: '51 min', pct: 100 }, { n: 4, t: 'Woe\u2019s Hollow', len: '55 min', pct: 100 }, { n: 5, t: 'Trojan\u2019s Horse', len: '46 min', pct: 100 }, { n: 6, t: 'Attila', len: '48 min', pct: 100 }, { n: 7, t: 'Chikhai Bardo', len: '52 min', pct: 60 }, { n: 8, t: 'Sweet Vitriol', len: '43 min', pct: 0 } ] },
+      'The Bear': { year: 2024, genre: 'Comedy-drama', rating: 'TV-MA', seasons: 3, syn: 'A young chef returns to Chicago to run his family\u2019s sandwich shop, wrestling with grief, debt, and a kitchen full of strong personalities.', cast: ['Jeremy Allen White', 'Ayo Edebiri', 'Ebon Moss-Bachrach'] },
+      'Andor': { year: 2025, genre: 'Sci-fi', rating: 'TV-14', seasons: 2, syn: 'The story of the rebellion\u2019s unlikely beginnings, told through Cassian Andor\u2019s journey from cynical survivor to revolutionary.', cast: ['Diego Luna', 'Stellan Skarsgård', 'Genevieve O\u2019Reilly'] },
+      'Planet Earth III': { year: 2023, genre: 'Documentary', rating: 'TV-G', seasons: 1, syn: 'David Attenborough narrates a journey to the planet\u2019s most extraordinary landscapes and the animals that call them home.', cast: ['David Attenborough'] },
+    };
+    const dev = () => ({ tab: 'home', cat: 'Movies', menu: false, media: null, season: 0, toast: null, player: null, track: null, playing: true });
+    this.state = {
+      devs: [dev(), dev()],
+      folders: [
+        { path: '/Movies', meta: '38 items · movies' },
+        { path: '/TV', meta: '112 episodes · tv shows' },
+        { path: '/Music', meta: '842 tracks · music' },
+        { path: '/Documents', meta: '57 files · documents' },
+        { path: '/ROMs', meta: '64 items · games' },
+      ],
+      connected: { Plex: true, Twitch: true, YouTube: true, 'YouTube TV': true, Netflix: false, Moonlight: true },
+      users: [{ name: 'You', role: 'Owner' }],
+    };
+    this.timers = [];
+  }
+  componentWillUnmount() { this.timers.forEach(clearTimeout); }
+  setDev(i, patch) { this.setState(s => { const devs = s.devs.slice(); devs[i] = Object.assign({}, devs[i], patch); return { devs }; }); }
+  toast(i, msg) { this.setDev(i, { toast: msg }); this.timers.push(setTimeout(() => this.setDev(i, { toast: null }), 2600)); }
+  openMedia(i, m, kind) {
+    if (m.src === 'plex' || m.src === 'local') this.setDev(i, { player: { ...m, kind, from: m.src === 'plex' ? 'Plex' : 'Local file' } });
+    else this.toast(i, '↗ Opening \u201c' + m.t + '\u201d in ' + m.src + '\u2026');
+  }
+  buildMedia(i, wide, d, acc) {
+    if (!d.media) return { cast: [], episodes: [], seasonChips: [], related: [] };
+    const { m, kind } = d.media;
+    const meta = this.META[m.t] || {};
+    const isShow = kind === 'show';
+    const cGrads = ['linear-gradient(135deg,#0f4c5c,#9bd1d4)', 'linear-gradient(135deg,#5c0a0a,#f2c14e)', 'linear-gradient(135deg,#3a0ca3,#b5179e)', 'linear-gradient(135deg,#1b4332,#95d5b2)', 'linear-gradient(135deg,#7c4a03,#e8b464)'];
+    const cast = (meta.cast || []).map((n, ci) => ({ name: n, initials: n.split(' ').map(w => w[0]).slice(0, 2).join(''), grad: cGrads[ci % cGrads.length] }));
+    const seasons = meta.seasons || 1;
+    const seasonChips = isShow ? Array.from({ length: seasons }, (_, si) => ({
+      label: 'Season ' + (si + 1),
+      onClick: () => this.setDev(i, { season: si }),
+      style: { border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12px', fontWeight: 600, padding: '8px 15px', borderRadius: '99px', background: d.season === si ? '#1d1d1f' : '#fff', color: d.season === si ? '#fff' : '#5b5b60', boxShadow: '0 1px 4px rgba(0,0,0,.06)' },
+    })) : [];
+    const lastSeason = d.season === seasons - 1;
+    const eps = (isShow ? (lastSeason && meta.eps ? meta.eps : Array.from({ length: 8 }, (_, ei) => ({ n: ei + 1, t: 'Episode ' + (ei + 1), len: '45 min', pct: lastSeason ? 0 : 100 }))) : []).map(ep => ({
+      n: ep.n, t: ep.t, sub: ep.len + ' · S' + (d.season + 1) + ' E' + ep.n,
+      watched: ep.pct === 100, started: ep.pct > 0 && ep.pct < 100, pct: ep.pct + '%',
+      play: () => this.openMedia(i, { ...m, t: m.t + ' — S' + (d.season + 1) + ' E' + ep.n + ' \u201c' + ep.t + '\u201d' }, 'show'),
+    }));
+    const external = m.src !== 'plex' && m.src !== 'local';
+    const started = m.pct > 0;
+    const others = (kind === 'movie' ? this.MOVIES : this.SHOWS).filter(x => x.t !== m.t).slice(0, 3);
+    return {
+      title: m.t, letter: m.l, grad: m.grad, tag: m.tag,
+      meta: (meta.year || '') + ' · ' + (meta.genre || '') + ' · ' + (meta.rating || '') + (isShow ? ' · ' + seasons + (seasons > 1 ? ' seasons' : ' season') : ' · ' + m.len),
+      synopsis: meta.syn || 'No synopsis matched yet.',
+      cast, isShow, isMovie: !isShow, seasonChips, episodes: eps,
+      related: others.map(o => ({ title: o.t, grad: o.grad, letter: o.l, click: () => this.setDev(i, { media: { m: o, kind }, season: 0 }) })),
+      playLabel: external ? 'Open in ' + m.src + ' ↗' : (started ? '▶  Resume · ' + m.at + ' of ' + m.len : '▶  Play'),
+      play: () => this.openMedia(i, m, kind),
+      back: () => this.setDev(i, { media: null }),
+    };
+  }
+  buildDev(i, wide) {
+    const d = this.state.devs[i];
+    const acc = this.props.accent ?? '#0a7cff';
+    const conn = this.state.connected;
+    const hero = this.SHOWS[0];
+    const openDetail = (m, kind) => () => this.setDev(i, { media: { m, kind }, season: 0 });
+    const rowVm = (items, kind) => items.map(m => ({ title: m.t, sub: m.sub, grad: m.grad, letter: m.l, tag: m.tag, live: false, click: openDetail(m, kind) }));
+    const homeRows = [
+      { title: 'NEW FROM YOUR SUBSCRIPTIONS', moreLabel: 'YouTube ↗', more: () => this.toast(i, '↗ Opening YouTube subscriptions feed\u2026'), cardW: wide ? '190px' : '160px', ratio: '16/9', items: this.YT.map(v => ({ title: v.t, sub: v.sub, grad: v.grad, letter: v.l, tag: null, live: false, click: () => this.toast(i, '↗ Playing in YouTube\u2026') })) },
+      { title: 'LIVE NOW', moreLabel: 'See all', more: () => this.setDev(i, { tab: 'live' }), cardW: wide ? '190px' : '160px', ratio: '16/9', items: this.TWITCH.map(tw => ({ title: tw.channel, sub: tw.game + ' · ' + tw.viewers + ' watching', grad: tw.grad, letter: tw.l, tag: null, live: true, click: () => this.toast(i, '↗ Opening ' + tw.channel + ' in Twitch\u2026') })) },
+      { title: 'MOVIES', moreLabel: 'See all', more: () => this.setDev(i, { tab: 'lib', cat: 'Movies' }), cardW: wide ? '124px' : '104px', ratio: '2/3', items: rowVm(this.MOVIES, 'movie') },
+      { title: 'JUMP BACK IN · GAMES', moreLabel: 'See all', more: () => this.setDev(i, { tab: 'lib', cat: 'Games' }), cardW: wide ? '124px' : '104px', ratio: '3/4', items: this.GAMES.map(g => ({ title: g.t, sub: g.sub, grad: g.grad, letter: g.l, tag: g.tag, live: false, click: () => this.toast(i, '▶ Launching ' + g.t + '\u2026') })) },
+    ];
+    const cats = ['Games', 'Movies', 'TV', 'Music', 'Files'].map(c => ({
+      label: c, onClick: () => this.setDev(i, { cat: c }),
+      style: { flex: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12px', fontWeight: 600, padding: '8px 15px', borderRadius: '99px', background: d.cat === c ? '#1d1d1f' : '#fff', color: d.cat === c ? '#fff' : '#5b5b60', boxShadow: '0 1px 4px rgba(0,0,0,.06)' },
+    }));
+    const libIsGrid = ['Games', 'Movies', 'TV'].includes(d.cat);
+    let libItems = [];
+    if (d.cat === 'Movies') libItems = rowVm(this.MOVIES, 'movie');
+    if (d.cat === 'TV') libItems = rowVm(this.SHOWS, 'show');
+    if (d.cat === 'Games') libItems = this.GAMES.map(g => ({ title: g.t, sub: g.sub, grad: g.grad, letter: g.l, tag: g.tag, click: () => this.toast(i, '▶ Launching ' + g.t + '\u2026') }));
+    let libRows = [];
+    if (d.cat === 'Music') libRows = this.MUSIC.map(m => ({ title: m.t, sub: m.sub, icon: '♪', iconBg: 'color-mix(in oklab,' + acc + ' 12%,#fff)', iconColor: acc, right: m.right, click: () => this.setDev(i, { track: m.t, trackSub: m.sub, playing: true }) }));
+    if (d.cat === 'Files') libRows = this.FILES.map(f => ({ title: f.t, sub: f.sub, icon: f.icon, iconBg: f.bg, iconColor: f.color, right: '↗ ' + f.app, click: () => this.toast(i, '↗ Opening \u201c' + f.t + '\u201d in ' + f.app + '\u2026') }));
+    const tabs = [['home', 'Home', '⌂'], ['lib', 'Library', '▦'], ['live', 'Live', '◉'], ['settings', 'Sources', '⚙']].map(([t, label, glyph]) => ({
+      label, glyph, onClick: () => this.setDev(i, { tab: t }),
+      style: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', padding: '6px 0 8px', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', color: d.tab === t ? acc : '#86868b' },
+    }));
+    const p = d.player;
+    const counts = { Games: this.GAMES.length, Movies: this.MOVIES.length, 'TV Shows': this.SHOWS.length, Music: this.MUSIC.length, Files: this.FILES.length, Live: this.TWITCH.length + this.YTTV.length, Sources: this.state.folders.length + Object.values(conn).filter(Boolean).length };
+    const SECTIONS = [
+      { label: 'Home', glyph: '⌂', is: () => d.tab === 'home', go: () => ({ tab: 'home' }) },
+      { label: 'Games', glyph: '▦', is: () => d.tab === 'lib' && d.cat === 'Games', go: () => ({ tab: 'lib', cat: 'Games' }) },
+      { label: 'Movies', glyph: '⌗', is: () => d.tab === 'lib' && d.cat === 'Movies', go: () => ({ tab: 'lib', cat: 'Movies' }) },
+      { label: 'TV Shows', glyph: '▤', is: () => d.tab === 'lib' && d.cat === 'TV', go: () => ({ tab: 'lib', cat: 'TV' }) },
+      { label: 'Music', glyph: '♪', is: () => d.tab === 'lib' && d.cat === 'Music', go: () => ({ tab: 'lib', cat: 'Music' }) },
+      { label: 'Files', glyph: '◫', is: () => d.tab === 'lib' && d.cat === 'Files', go: () => ({ tab: 'lib', cat: 'Files' }) },
+      { label: 'Live', glyph: '◉', is: () => d.tab === 'live', go: () => ({ tab: 'live' }) },
+      { label: 'Sources', glyph: '⚙', is: () => d.tab === 'settings', go: () => ({ tab: 'settings' }) },
+    ];
+    const current = SECTIONS.find(s => s.is());
+    const menuItems = SECTIONS.map(s => ({
+      label: s.label, glyph: s.glyph, count: counts[s.label] != null ? String(counts[s.label]) : '',
+      onClick: () => this.setDev(i, { ...s.go(), menu: false }),
+      style: { display: 'flex', alignItems: 'center', gap: '10px', width: '100%', boxSizing: 'border-box', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13.5px', fontWeight: 600, padding: '10px 12px', borderRadius: '11px', textAlign: 'left', background: s.is() ? 'color-mix(in oklab,' + acc + ' 12%,#fff)' : 'transparent', color: s.is() ? acc : '#1d1d1f' },
+    }));
+    const users = this.state.users;
+    const uGrads = ['linear-gradient(135deg,' + acc + ',#7cc4ff)', 'linear-gradient(135deg,#bc6c25,#ffc971)', 'linear-gradient(135deg,#3a0ca3,#b5179e)', 'linear-gradient(135deg,#1b4332,#95d5b2)'];
+    return {
+      showAvatar: users.length > 1, avatarInitial: users[0].name[0].toUpperCase(),
+      userRows: users.map((u, ui) => ({ name: u.name, role: u.role, initial: u.name[0].toUpperCase(), grad: uGrads[ui % uGrads.length], removable: ui > 0, remove: () => this.setState(s => ({ users: s.users.filter((_, x) => x !== ui) })) })),
+      addUser: () => { const names = ['Sam', 'Alex', 'Kim']; const n = names[(users.length - 1) % names.length]; this.setState(s => ({ users: s.users.concat([{ name: n, role: 'Member' }]) })); this.toast(i, '✓ Added ' + n + ' — profile switcher enabled'); },
+      dropLabel: current ? current.label : 'Home',
+      menuOpen: d.menu, chevRot: d.menu ? 'rotate(180deg)' : 'none',
+      toggleMenu: () => this.setDev(i, { menu: !d.menu }),
+      closeMenu: () => this.setDev(i, { menu: false }),
+      menuItems,
+      label: wide ? 'UNFOLDED · 7.6″ MAIN DISPLAY' : 'FOLDED · 5.5″ COVER DISPLAY',
+      caption: wide ? 'Wider rows, 5-across library, two-column sources' : 'Compact rows and 3-across library',
+      frameW: wide ? 720 : 352, frameH: wide ? 760 : 804,
+      onHome: d.tab === 'home' && !d.media, onLib: d.tab === 'lib' && !d.media, onLive: d.tab === 'live' && !d.media, onSettings: d.tab === 'settings' && !d.media,
+      onMedia: !!d.media,
+      md: this.buildMedia(i, wide, d, acc),
+      mdCols: { display: 'grid', gridTemplateColumns: wide ? '1fr 1fr' : '1fr', columnGap: '28px', padding: '0 22px 10px', marginTop: '-6px', position: 'relative' },
+      homeSub: 'Everything on your Fold, in one place',
+      hero: { title: hero.t, meta: 'Continue watching · ' + hero.sub + ' · ' + hero.at + ' of ' + hero.len, badge: 'CONTINUE', grad: hero.grad, progress: hero.pct + '%', play: openDetail(hero, 'show') },
+      homeRows,
+      cats, libIsGrid, libIsRows: !libIsGrid,
+      libItems, libRows,
+      libGridStyle: { display: 'grid', gridTemplateColumns: 'repeat(' + (wide ? 5 : 3) + ',1fr)', gap: wide ? '16px' : '12px', padding: '14px 22px 90px' },
+      libRowsStyle: { display: 'flex', flexDirection: 'column', gap: '8px', padding: '14px 22px 90px' },
+      liveGridStyle: { display: 'grid', gridTemplateColumns: wide ? 'repeat(3,1fr)' : 'repeat(2,1fr)', gap: '14px', padding: '0 22px' },
+      twitch: this.TWITCH.map(tw => ({ ...tw, letter: tw.l, click: () => this.toast(i, '↗ Opening ' + tw.channel + ' in Twitch\u2026') })),
+      yttv: this.YTTV.map(ch => ({ ...ch, pct: ch.pct + '%', click: () => this.toast(i, '↗ Tuning to ' + ch.channel + ' in YouTube TV\u2026') })),
+      setCols: { display: 'grid', gridTemplateColumns: wide ? '1fr 1fr' : '1fr', columnGap: '28px', padding: '0 22px' },
+      folderRows: this.state.folders.map((f, fi) => ({ ...f, remove: () => this.setState(s => ({ folders: s.folders.filter((_, x) => x !== fi) })) })),
+      addFolder: () => { this.setState(s => ({ folders: s.folders.concat([{ path: '/DCIM/Recordings', meta: 'scanning\u2026' }]) })); this.toast(i, '📁 Watching /DCIM/Recordings'); },
+      serviceRows: this.SERVICES.map(s => {
+        const on = !!conn[s.name];
+        return { ...s, toggle: () => { this.setState(st => ({ connected: { ...st.connected, [s.name]: !st.connected[s.name] } })); this.toast(i, (on ? '✕ Disconnected ' : '✓ Connected ') + s.name); },
+          btnLabel: on ? '✓ Connected' : 'Connect',
+          btnStyle: { border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '11.5px', fontWeight: 700, padding: '8px 14px', borderRadius: '99px', background: on ? 'rgba(0,0,0,.05)' : acc, color: on ? '#5b5b60' : '#fff' } };
+      }),
+      tabs,
+      track: d.track, trackSub: d.trackSub || '', trackGrad: 'linear-gradient(135deg,' + acc + ',#7cc4ff)',
+      playGlyph: d.playing ? '❚❚' : '▶',
+      togglePlay: () => this.setDev(i, { playing: !d.playing }),
+      closeTrack: () => this.setDev(i, { track: null }),
+      player: !!p,
+      playerGrad: p ? p.grad : '#000', playerTitle: p ? p.t : '', playerMeta: p ? 'Playing from ' + p.from + ' · MediaVault player' : '',
+      playerAt: p ? p.at : '', playerLen: p ? p.len : '', playerPct: p ? p.pct + '%' : '0%',
+      externalLabel: p ? (p.src === 'plex' ? 'Open in Plex ↗' : 'Open in VLC ↗') : '',
+      openExternal: () => { const t = p ? p.t : ''; const app = p && p.src === 'plex' ? 'Plex' : 'VLC'; this.setDev(i, { player: null }); this.toast(i, '↗ Opening \u201c' + t + '\u201d in ' + app + '\u2026'); },
+      closePlayer: () => this.setDev(i, { player: null }),
+      toast: d.toast,
+    };
+  }
+  renderVals() {
+    const showUnfolded = this.props.showUnfolded ?? true;
+    const devices = [this.buildDev(0, false)];
+    if (showUnfolded) devices.push(this.buildDev(1, true));
+    return { devices, accent: this.props.accent ?? '#0a7cff' };
+  }
+}
+</script>
+</body>
+</html>

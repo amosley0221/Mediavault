@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+body{margin:0;background:#e9e9ee;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;padding:40px}
+a{color:#0a7cff;text-decoration:none}a:hover{color:#3d99ff}
+input,textarea{outline:none}
+@keyframes gvfade{from{opacity:0}to{opacity:1}}
+@keyframes gvpop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes gvspin{to{transform:rotate(360deg)}}
+::-webkit-scrollbar{display:none}
+</style>
+</helmet>
+<div style="display:flex;gap:56px;align-items:flex-start;justify-content:center;flex-wrap:wrap;--ac:{{ accent }}">
+<sc-for list="{{ devices }}" as="dev" hint-placeholder-count="2">
+<div style="display:flex;flex-direction:column;gap:14px;align-items:center">
+<div style="font-size:11px;font-weight:600;letter-spacing:2px;color:#86868b">{{ dev.label }}</div>
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" width="{{ dev.frameW }}" height="{{ dev.frameH }}" hint-size="368px,820px">
+<div style="position:relative;height:100%;background:#f5f5f7;color:#1d1d1f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden">
+
+  <!-- LIBRARY -->
+  <sc-if value="{{ dev.onLibrary }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1;overflow-y:auto;animation:gvfade .25s ease;position:relative">
+      <!-- ambient backdrop from focused game -->
+      <div style="position:absolute;top:-80px;left:-80px;right:-80px;height:420px;filter:blur(60px);opacity:.35;transition:background .5s;background:{{ dev.focusGrad }};pointer-events:none"></div>
+      <div style="position:relative">
+        <div style="padding:16px 22px 0;display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <div style="font-size:26px;font-weight:700;letter-spacing:-0.6px">Games</div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <button onClick="{{ dev.goAdd }}" style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.75);backdrop-filter:blur(10px);border:1px solid rgba(0,0,0,.06);color:var(--ac,#0a7cff);font-size:19px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.06)">+</button>
+            <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--ac,#0a7cff),#7cc4ff);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:13px">J</div>
+          </div>
+        </div>
+        <!-- CAROUSEL -->
+        <div onScroll="{{ dev.onCarScroll }}" ref="{{ dev.carRef }}" style="display:flex;gap:{{ dev.carGap }};overflow-x:auto;scroll-snap-type:x mandatory;padding:{{ dev.carPad }};align-items:center">
+          <sc-for list="{{ dev.carGames }}" as="cg" hint-placeholder-count="6">
+            <div onClick="{{ cg.click }}" style="{{ cg.style }}">
+              <div style="position:absolute;inset:0;background:repeating-linear-gradient(-45deg,rgba(255,255,255,.06) 0 2px,transparent 2px 9px)"></div>
+              <span style="position:relative;font-weight:800;color:rgba(255,255,255,.92);font-size:44px;text-shadow:0 2px 12px rgba(0,0,0,.25)">{{ cg.letter }}</span>
+              <sc-if value="{{ cg.fav }}" hint-placeholder-val="{{ false }}">
+                <div style="position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;font-size:13px;color:#f5a623">★</div>
+              </sc-if>
+              <div style="position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,.4);backdrop-filter:blur(6px);border-radius:6px;padding:2px 7px;font-size:9px;font-weight:600;color:#fff;letter-spacing:.4px">{{ cg.short }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <!-- focused game meta -->
+        <div style="text-align:center;padding:2px 24px 0;min-height:118px">
+          <div style="font-size:20px;font-weight:700;letter-spacing:-0.4px">{{ dev.focusTitle }}</div>
+          <div style="font-size:12.5px;color:#86868b;margin-top:3px">{{ dev.focusMeta }}</div>
+          <div style="display:flex;gap:10px;justify-content:center;margin-top:12px">
+            <button onClick="{{ dev.focusLaunch }}" style="background:var(--ac,#0a7cff);color:#fff;border:none;border-radius:99px;padding:11px 30px;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer;box-shadow:0 6px 18px color-mix(in oklab,var(--ac,#0a7cff) 35%,transparent)">▶&nbsp; Play</button>
+            <button onClick="{{ dev.focusFavToggle }}" style="{{ dev.favBtnStyle }}">{{ dev.favBtnGlyph }}</button>
+            <button onClick="{{ dev.focusOpen }}" style="width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.85);border:1px solid rgba(0,0,0,.07);color:#1d1d1f;font-size:15px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.05)">ⓘ</button>
+          </div>
+        </div>
+        <!-- SORT + GRID -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 22px 0;gap:10px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#86868b">ALL GAMES · {{ dev.shownCount }}</div>
+          <div style="display:flex;background:rgba(0,0,0,.05);border-radius:99px;padding:3px">
+            <sc-for list="{{ dev.sorts }}" as="so" hint-placeholder-count="4">
+              <button onClick="{{ so.onClick }}" style="{{ so.style }}">{{ so.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="{{ dev.gridStyle }}">
+          <sc-for list="{{ dev.shownGames }}" as="game" hint-placeholder-count="10">
+            <div onClick="{{ game.open }}" style="cursor:pointer;animation:gvpop .3s ease both">
+              <div style="aspect-ratio:3/4;border-radius:14px;position:relative;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:rgba(255,255,255,.92);overflow:hidden;background:{{ game.grad }};box-shadow:0 4px 14px rgba(0,0,0,.10)">
+                <div style="position:absolute;inset:0;background:repeating-linear-gradient(-45deg,rgba(255,255,255,.06) 0 2px,transparent 2px 9px)"></div>
+                <span style="position:relative">{{ game.letter }}</span>
+                <sc-if value="{{ game.fav }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;top:7px;right:7px;font-size:12px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.4)">★</div>
+                </sc-if>
+              </div>
+              <div style="font-size:12px;font-weight:600;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ game.title }}</div>
+              <div style="font-size:10.5px;color:#86868b;margin-top:1px">{{ game.sub }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- DETAIL -->
+  <sc-if value="{{ dev.onDetail }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;overflow-y:auto;animation:gvfade .25s ease">
+      <div style="height:200px;position:relative;display:flex;align-items:center;justify-content:center;background:{{ dev.sel.grad }}">
+        <div style="position:absolute;inset:0;background:repeating-linear-gradient(-45deg,rgba(255,255,255,.06) 0 2px,transparent 2px 9px)"></div>
+        <span style="font-size:60px;font-weight:800;color:rgba(255,255,255,.92);position:relative;text-shadow:0 2px 14px rgba(0,0,0,.25)">{{ dev.sel.letter }}</span>
+        <div style="position:absolute;inset:auto 0 0 0;height:90px;background:linear-gradient(transparent,#f5f5f7)"></div>
+        <button onClick="{{ dev.goLibrary }}" style="position:absolute;top:12px;left:14px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.8);backdrop-filter:blur(8px);color:#1d1d1f;border:none;font-size:17px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.1)">‹</button>
+        <button onClick="{{ dev.selFavToggle }}" style="position:absolute;top:12px;right:14px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.8);backdrop-filter:blur(8px);border:none;font-size:15px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.1);color:{{ dev.selFavColor }}">★</button>
+      </div>
+      <div style="{{ dev.detailCols }}">
+        <div>
+          <div style="font-size:24px;font-weight:700;letter-spacing:-0.5px">{{ dev.sel.title }}</div>
+          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+            <span style="background:#fff;border:1px solid rgba(0,0,0,.07);border-radius:99px;padding:4px 11px;font-size:11px;font-weight:600;color:var(--ac,#0a7cff)">{{ dev.sel.source }}</span>
+            <span style="background:#fff;border:1px solid rgba(0,0,0,.07);border-radius:99px;padding:4px 11px;font-size:11px;color:#86868b">{{ dev.sel.plat }}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:16px">
+            <div style="background:#fff;border-radius:14px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,.05)"><div style="font-size:16px;font-weight:700">{{ dev.sel.hoursLabel }}</div><div style="font-size:9.5px;color:#86868b;margin-top:2px;letter-spacing:.6px">PLAYTIME</div></div>
+            <div style="background:#fff;border-radius:14px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,.05)"><div style="font-size:16px;font-weight:700">{{ dev.sel.last }}</div><div style="font-size:9.5px;color:#86868b;margin-top:2px;letter-spacing:.6px">LAST PLAYED</div></div>
+            <div style="background:#fff;border-radius:14px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,.05)"><div style="font-size:16px;font-weight:700">{{ dev.sel.saveCount }}</div><div style="font-size:9.5px;color:#86868b;margin-top:2px;letter-spacing:.6px">SAVE STATES</div></div>
+          </div>
+          <button onClick="{{ dev.sel.launch }}" style="width:100%;margin-top:14px;background:var(--ac,#0a7cff);color:#fff;border:none;border-radius:99px;padding:15px;font-weight:700;font-size:15px;font-family:inherit;cursor:pointer;box-shadow:0 6px 18px color-mix(in oklab,var(--ac,#0a7cff) 30%,transparent)">▶&nbsp;&nbsp;Play via {{ dev.sel.via }}</button>
+          <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#86868b;margin:20px 0 10px">PLAY HISTORY · LAST 7 DAYS</div>
+          <div style="display:flex;align-items:flex-end;gap:6px;height:64px;background:#fff;border-radius:14px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+            <sc-for list="{{ dev.sel.bars }}" as="bar" hint-placeholder-count="7">
+              <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%"><div style="border-radius:3px;background:{{ bar.color }};height:{{ bar.h }}"></div></div>
+            </sc-for>
+          </div>
+          <sc-if value="{{ dev.sel.hasShots }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#86868b;margin:20px 0 10px">SCREENSHOTS</div>
+            <div style="display:flex;gap:10px">
+              <sc-for list="{{ dev.sel.shots }}" as="shot" hint-placeholder-count="3">
+                <div style="flex:1;aspect-ratio:16/10;border-radius:12px;border:1px dashed rgba(0,0,0,.15);background:repeating-linear-gradient(-45deg,#ececf1 0 6px,#f2f2f6 6px 12px);display:flex;align-items:center;justify-content:center;font-family:ui-monospace,monospace;font-size:9px;color:#86868b">{{ shot }}</div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#86868b;margin:20px 0 10px">SAVE STATES</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <sc-for list="{{ dev.sel.saves }}" as="sv" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:10px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+                <div style="width:32px;height:32px;border-radius:10px;background:color-mix(in oklab,var(--ac,#0a7cff) 12%,#fff);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--ac,#0a7cff);flex:none">{{ sv.slot }}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ sv.note }}</div>
+                  <div style="font-size:11px;color:#86868b">{{ sv.time }}</div>
+                </div>
+                <button onClick="{{ sv.load }}" style="background:rgba(0,0,0,.05);border:none;color:#1d1d1f;border-radius:99px;padding:7px 14px;font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer">Load</button>
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#86868b;margin:20px 0 10px">ACHIEVEMENTS</div>
+          <div style="background:#fff;border-radius:14px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+            <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600"><span>{{ dev.sel.achLabel }}</span><span style="color:var(--ac,#0a7cff)">{{ dev.sel.achPct }}</span></div>
+            <div style="height:5px;border-radius:3px;background:rgba(0,0,0,.06);margin-top:10px;overflow:hidden"><div style="height:100%;background:var(--ac,#0a7cff);width:{{ dev.sel.achPct }}"></div></div>
+            <div style="font-size:11px;color:#86868b;margin-top:10px">Latest: {{ dev.sel.achLatest }}</div>
+          </div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#86868b;margin:20px 0 10px">CONTROLLER</div>
+          <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+            <div style="width:32px;height:32px;border-radius:10px;background:rgba(0,0,0,.05);display:flex;align-items:center;justify-content:center;font-size:14px;flex:none">🎮</div>
+            <div style="flex:1"><div style="font-size:13px;font-weight:600">{{ dev.sel.pad }}</div><div style="font-size:11px;color:#86868b">{{ dev.sel.padPreset }}</div></div>
+            <button style="background:rgba(0,0,0,.05);border:none;color:#1d1d1f;border-radius:99px;padding:7px 14px;font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer">Remap</button>
+          </div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#86868b;margin:20px 0 10px">NOTES</div>
+          <textarea value="{{ dev.sel.note }}" onChange="{{ dev.sel.onNote }}" placeholder="Boss strategies, where you left off…" style="width:100%;box-sizing:border-box;min-height:74px;background:#fff;border:1px solid rgba(0,0,0,.07);border-radius:14px;padding:12px 14px;color:#1d1d1f;font-family:inherit;font-size:13px;resize:none"></textarea>
+          <div style="height:30px"></div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ADD GAME -->
+  <sc-if value="{{ dev.onAdd }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;overflow-y:auto;animation:gvfade .25s ease">
+      <div style="padding:14px 22px 0;display:flex;align-items:center;gap:12px">
+        <button onClick="{{ dev.goLibrary }}" style="width:34px;height:34px;border-radius:50%;background:#fff;border:1px solid rgba(0,0,0,.07);color:#1d1d1f;font-size:17px;cursor:pointer">‹</button>
+        <div><div style="font-size:19px;font-weight:700;letter-spacing:-0.4px">Add a game</div><div style="font-size:11.5px;color:#86868b">For anything the scanner missed</div></div>
+      </div>
+      <div style="margin:16px 22px 0;display:flex;align-items:center;gap:10px;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:12px;padding:11px 14px;box-shadow:0 1px 4px rgba(0,0,0,.04)">
+        <span style="color:#86868b;font-size:15px">⌕</span>
+        <input value="{{ dev.addQ }}" onChange="{{ dev.onAddQ }}" placeholder="Search the game catalog…" style="flex:1;background:transparent;border:none;color:#1d1d1f;font-size:14px;font-family:inherit">
+      </div>
+      <div style="padding:14px 22px 40px;display:flex;flex-direction:column;gap:8px">
+        <sc-for list="{{ dev.addResults }}" as="res" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:11px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05);animation:gvpop .25s ease both">
+            <div style="width:40px;height:52px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:rgba(255,255,255,.92);background:{{ res.grad }}">{{ res.letter }}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13.5px;font-weight:600">{{ res.title }}</div>
+              <div style="font-size:11px;color:#86868b">{{ res.meta }}</div>
+            </div>
+            <button onClick="{{ res.add }}" style="background:var(--ac,#0a7cff);color:#fff;border:none;border-radius:99px;padding:8px 15px;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">{{ res.btn }}</button>
+          </div>
+        </sc-for>
+        <div style="text-align:center;color:#86868b;font-size:12px;margin-top:10px">Can’t find it? <span style="color:var(--ac,#0a7cff);font-weight:600;cursor:pointer">Add manually</span> — pick an APK, ROM or shortcut.</div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- STATS -->
+  <sc-if value="{{ dev.onStats }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;overflow-y:auto;animation:gvfade .25s ease">
+      <div style="padding:16px 22px 0"><div style="font-size:26px;font-weight:700;letter-spacing:-0.6px">Stats</div><div style="font-size:12px;color:#86868b">Across every source</div></div>
+      <div style="{{ dev.statsCols }}">
+        <div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div style="background:#fff;border-radius:16px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.05)"><div style="font-size:26px;font-weight:700;color:var(--ac,#0a7cff)">{{ dev.stTotal }}</div><div style="font-size:10px;color:#86868b;letter-spacing:.6px;margin-top:2px">TOTAL PLAYTIME</div></div>
+            <div style="background:#fff;border-radius:16px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.05)"><div style="font-size:26px;font-weight:700">{{ dev.stWeek }}</div><div style="font-size:10px;color:#86868b;letter-spacing:.6px;margin-top:2px">THIS WEEK</div></div>
+          </div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#86868b;margin:20px 0 10px">MOST PLAYED</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <sc-for list="{{ dev.stTop }}" as="t" hint-placeholder-count="5">
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span style="font-weight:600">{{ t.title }}</span><span style="color:#86868b">{{ t.hours }}</span></div>
+                <div style="height:6px;border-radius:3px;background:rgba(0,0,0,.06);overflow:hidden"><div style="height:100%;border-radius:3px;background:{{ t.grad }};width:{{ t.w }}"></div></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#86868b;margin:20px 0 10px">BY SOURCE</div>
+          <div style="display:flex;flex-direction:column;gap:8px;padding-bottom:30px">
+            <sc-for list="{{ dev.stSources }}" as="s" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:11px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+                <div style="flex:1"><div style="font-size:13px;font-weight:600">{{ s.name }}</div><div style="font-size:11px;color:#86868b">{{ s.games }}</div></div>
+                <div style="font-size:13px;font-weight:700;color:var(--ac,#0a7cff)">{{ s.hours }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- SETTINGS -->
+  <sc-if value="{{ dev.onSettings }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;overflow-y:auto;animation:gvfade .25s ease">
+      <div style="padding:16px 22px 0"><div style="font-size:26px;font-weight:700;letter-spacing:-0.6px">Settings</div><div style="font-size:12px;color:#86868b">Sources &amp; scanning</div></div>
+      <div style="padding:16px 22px 30px">
+        <button onClick="{{ dev.rescan }}" style="width:100%;background:#fff;border:1px solid rgba(0,0,0,.08);color:var(--ac,#0a7cff);border-radius:14px;padding:13px;font-weight:700;font-size:13.5px;font-family:inherit;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.04)">⟳&nbsp; Rescan all sources</button>
+        <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#86868b;margin:20px 0 10px">GAME SOURCES</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ dev.srcRows }}" as="src" hint-placeholder-count="6">
+            <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:11px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+              <div style="flex:1"><div style="font-size:13px;font-weight:600">{{ src.name }}</div><div style="font-size:11px;color:#86868b">{{ src.desc }}</div></div>
+              <div onClick="{{ src.toggle }}" style="width:42px;height:25px;border-radius:13px;cursor:pointer;position:relative;transition:background .2s;background:{{ src.tBg }}">
+                <div style="position:absolute;top:2.5px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .2s;left:{{ src.tX }}"></div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size:11px;color:#86868b;margin-top:18px;line-height:1.6">GameVault 2.0 · Playtime tracked via usage access.<br>Save states read from each emulator’s state folder.</div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- SCAN -->
+  <sc-if value="{{ dev.onScan }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 36px;animation:gvfade .25s ease;text-align:center">
+      <div style="width:64px;height:64px;border-radius:50%;border:3px solid rgba(0,0,0,.08);border-top-color:var(--ac,#0a7cff);animation:gvspin 1s linear infinite;display:{{ dev.scanSpin }}"></div>
+      <div style="font-size:44px;color:var(--ac,#0a7cff);display:{{ dev.scanDoneShow }}">✓</div>
+      <div style="font-size:19px;font-weight:700;margin-top:22px">{{ dev.scanTitle }}</div>
+      <div style="font-size:12.5px;color:#86868b;margin-top:6px">{{ dev.scanSub }}</div>
+      <div style="width:100%;max-width:280px;height:5px;border-radius:3px;background:rgba(0,0,0,.07);margin-top:24px;overflow:hidden"><div style="height:100%;background:var(--ac,#0a7cff);transition:width .3s;width:{{ dev.scanPct }}"></div></div>
+      <div style="font-size:11px;font-family:ui-monospace,monospace;color:#86868b;margin-top:10px">{{ dev.scanLog }}</div>
+      <button onClick="{{ dev.goLibrary }}" style="margin-top:26px;background:var(--ac,#0a7cff);color:#fff;border:none;border-radius:99px;padding:12px 28px;font-weight:700;font-size:13.5px;font-family:inherit;cursor:pointer;display:{{ dev.scanDoneShow }}">Go to library</button>
+    </div>
+  </sc-if>
+
+  <!-- BOTTOM NAV -->
+  <sc-if value="{{ dev.showNav }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:none;display:flex;background:rgba(245,245,247,.88);backdrop-filter:blur(16px);border-top:1px solid rgba(0,0,0,.06);padding:6px 10px 4px">
+      <sc-for list="{{ dev.tabs }}" as="tab" hint-placeholder-count="3">
+        <button onClick="{{ tab.onClick }}" style="{{ tab.style }}"><span style="font-size:16px">{{ tab.glyph }}</span><span style="font-size:10px;font-weight:600;letter-spacing:.4px">{{ tab.label }}</span></button>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <!-- LAUNCH OVERLAY -->
+  <sc-if value="{{ dev.launching }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;background:rgba(245,245,247,.92);backdrop-filter:blur(10px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;animation:gvfade .2s ease;z-index:5">
+      <div style="width:56px;height:56px;border-radius:50%;border:3px solid rgba(0,0,0,.08);border-top-color:var(--ac,#0a7cff);animation:gvspin .9s linear infinite"></div>
+      <div style="font-size:16px;font-weight:700">{{ dev.launchTitle }}</div>
+      <div style="font-size:12px;color:#86868b">{{ dev.launchSub }}</div>
+    </div>
+  </sc-if>
+
+  <!-- TOAST -->
+  <sc-if value="{{ dev.toast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:50%;transform:translateX(-50%);bottom:70px;background:#1d1d1f;color:#fff;border-radius:99px;padding:10px 18px;font-size:12.5px;font-weight:600;white-space:nowrap;animation:gvpop .25s ease;z-index:6;box-shadow:0 8px 24px rgba(0,0,0,.25)">{{ dev.toast }}</div>
+  </sc-if>
+
+</div>
+</x-import>
+<div style="font-size:11px;color:#9a9aa2">{{ dev.caption }}</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1260, &quot;height&quot;: 980}, &quot;accent&quot;: {&quot;editor&quot;: &quot;color&quot;, &quot;default&quot;: &quot;#0a7cff&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;options&quot;: [&quot;#0a7cff&quot;, &quot;#7ab8ff&quot;, &quot;#ff6b3d&quot;, &quot;#a06bff&quot;]}, &quot;showUnfolded&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.GAMES = [
+      { id: 'botw', title: 'Breath of the Wild', plat: 'Wii U', source: 'Cemu', short: 'CEMU', via: 'Cemu', letter: 'Z', grad: 'linear-gradient(135deg,#1f6f54,#8fd0a0)', hours: 47.5, last: 'Yesterday', lastOrd: 1, ach: [86, 120], hist: [1.5, 0, 2.2, 3.1, 0, 1.8, 2.6], pad: '8BitDo Ultimate', preset: 'Cemu · GamePad profile', shots: ['from Cemu · Aug 19', 'from Cemu · Aug 12', 'session · Aug 10'], saves: [ { slot: '1', note: 'Auto — Hyrule Castle approach', time: 'Yesterday · 21:14' }, { slot: '2', note: 'Before Thunderblight Ganon', time: 'Aug 19 · 19:02' }, { slot: '3', note: 'Great Plateau 100%', time: 'Aug 12 · 22:40' } ] },
+      { id: 'mk8', title: 'Mario Kart 8', plat: 'Wii U', source: 'Cemu', short: 'CEMU', via: 'Cemu', letter: 'MK', grad: 'linear-gradient(135deg,#c1121f,#ffb703)', hours: 22.1, last: '3 days ago', lastOrd: 3, ach: [30, 40], hist: [0, 1, 0.5, 0, 2, 0, 1.2] },
+      { id: 'prime', title: 'Metroid Prime', plat: 'GameCube', source: 'Dolphin', short: 'DOLPHIN', via: 'Dolphin', letter: 'MP', grad: 'linear-gradient(135deg,#5a189a,#48bfe3)', hours: 18.7, last: 'Last week', lastOrd: 7, ach: [12, 50], hist: [0, 0, 1.4, 0, 0, 2.1, 0] },
+      { id: 'ww', title: 'The Wind Waker', plat: 'GameCube', source: 'Dolphin', short: 'DOLPHIN', via: 'Dolphin', letter: 'WW', grad: 'linear-gradient(135deg,#023e8a,#90e0ef)', hours: 31.2, last: 'Aug 10', lastOrd: 12, ach: [20, 60], hist: [0.5, 0, 0, 1, 0, 0, 0] },
+      { id: 'totk', title: 'Tears of the Kingdom', plat: 'Switch', source: 'Yuzu', short: 'YUZU', via: 'Yuzu', letter: 'TK', grad: 'linear-gradient(135deg,#386641,#a7c957)', hours: 63.4, last: 'Today', lastOrd: 0, ach: [95, 200], hist: [2, 2.5, 1, 3, 2.2, 4, 3.5] },
+      { id: 'hades', title: 'Hades', plat: 'Switch', source: 'Yuzu', short: 'YUZU', via: 'Yuzu', letter: 'H', grad: 'linear-gradient(135deg,#10002b,#c77dff)', hours: 40.8, last: '2 days ago', lastOrd: 2, ach: [39, 49], hist: [1, 0, 1.5, 0, 2, 1, 0] },
+      { id: 'gow2', title: 'God of War II', plat: 'PS2', source: 'AetherSX2', short: 'PS2', via: 'AetherSX2', letter: 'GW', grad: 'linear-gradient(135deg,#6a040f,#e85d04)', hours: 14.3, last: 'Aug 8', lastOrd: 14, ach: [0, 0], hist: [0, 1.2, 0, 0, 0.8, 0, 0] },
+      { id: 'p3p', title: 'Persona 3 Portable', plat: 'PSP', source: 'PPSSPP', short: 'PPSSPP', via: 'PPSSPP', letter: 'P3', grad: 'linear-gradient(135deg,#14213d,#4361ee)', hours: 52.6, last: 'Aug 15', lastOrd: 7, ach: [0, 0], hist: [0, 0, 2, 1, 0, 0, 1.4] },
+      { id: 'smet', title: 'Super Metroid', plat: 'SNES', source: 'RetroArch', short: 'RETRO', via: 'RetroArch', letter: 'SM', grad: 'linear-gradient(135deg,#3c096c,#ff9e00)', hours: 9.8, last: 'Jul 30', lastOrd: 23, ach: [0, 0], hist: [0, 0, 0, 0.5, 0, 0, 0] },
+      { id: 'sv', title: 'Stardew Valley', plat: 'Android', source: 'Play Store', short: 'PLAY', via: 'Play Store', letter: 'SV', grad: 'linear-gradient(135deg,#606c38,#dda15e)', hours: 88.2, last: 'Today', lastOrd: 0, ach: [31, 43], hist: [1, 2, 1.5, 1, 2.5, 2, 1.8] },
+      { id: 'dc', title: 'Dead Cells', plat: 'Android', source: 'Play Store', short: 'PLAY', via: 'Play Store', letter: 'DC', grad: 'linear-gradient(135deg,#003049,#f77f00)', hours: 26.4, last: 'Yesterday', lastOrd: 1, ach: [22, 55], hist: [0.5, 1, 0, 1.5, 0, 2, 1] },
+      { id: 'bal', title: 'Balatro', plat: 'Android', source: 'Play Store', short: 'PLAY', via: 'Play Store', letter: 'B', grad: 'linear-gradient(135deg,#240046,#ff5d8f)', hours: 34.9, last: 'Today', lastOrd: 0, ach: [18, 34], hist: [1, 1.5, 2, 0.5, 1, 2.5, 2] },
+      { id: 'gta', title: 'GTA: San Andreas', plat: 'Android', source: 'Sideloaded', short: 'APK', via: 'installed APK', letter: 'SA', grad: 'linear-gradient(135deg,#333d29,#a68a64)', hours: 12.5, last: 'Jul 22', lastOrd: 31, ach: [0, 0], hist: [0, 0, 0, 0, 0, 0, 0] },
+      { id: 'er', title: 'Elden Ring', plat: 'PC stream', source: 'Moonlight', short: 'STREAM', via: 'Moonlight', letter: 'ER', grad: 'linear-gradient(135deg,#582f0e,#e6ccb2)', hours: 71.3, last: '4 days ago', lastOrd: 4, ach: [28, 42], hist: [3, 0, 0, 2, 0, 0, 1] },
+    ];
+    this.CATALOG = [
+      { title: 'Chrono Trigger', plat: 'SNES', src: 'RetroArch', grad: 'linear-gradient(135deg,#0b3954,#f9c74f)', letter: 'CT' },
+      { title: 'Ōkami HD', plat: 'PS2', src: 'AetherSX2', grad: 'linear-gradient(135deg,#7f1d1d,#fca5a5)', letter: 'Ō' },
+      { title: 'F-Zero GX', plat: 'GameCube', src: 'Dolphin', grad: 'linear-gradient(135deg,#1e3a8a,#67e8f9)', letter: 'FZ' },
+      { title: 'Peace Walker', plat: 'PSP', src: 'PPSSPP', grad: 'linear-gradient(135deg,#374151,#a3e635)', letter: 'PW' },
+      { title: 'Shadow of the Colossus', plat: 'PS2', src: 'AetherSX2', grad: 'linear-gradient(135deg,#44403c,#d6d3d1)', letter: 'SC' },
+      { title: 'Hollow Knight', plat: 'PC stream', src: 'Moonlight', grad: 'linear-gradient(135deg,#0f172a,#7dd3fc)', letter: 'HK' },
+    ];
+    this.SOURCES = ['Play Store', 'Cemu', 'Dolphin', 'Yuzu', 'AetherSX2', 'PPSSPP', 'RetroArch', 'Sideloaded', 'Moonlight'];
+    this.SRC_DESC = { 'Play Store': 'Installed Android games', 'Cemu': 'Wii U · /Cemu/games', 'Dolphin': 'GC & Wii · /ROMs/dolphin', 'Yuzu': 'Switch · /ROMs/switch', 'AetherSX2': 'PS2 · /ROMs/ps2', 'PPSSPP': 'PSP · /ROMs/psp', 'RetroArch': 'Multi-system cores', 'Sideloaded': 'APKs outside Play Store', 'Moonlight': 'PC game streaming' };
+    const dev = () => ({ screen: 'library', selId: 'totk', sort: 'favs', focus: 0, addQ: '', scanPct: 0, scanDone: false, launching: null, toast: null });
+    this.state = { devs: [dev(), dev()], added: [], notes: {}, srcOff: {}, favs: { totk: true, sv: true, hades: true } };
+    this.timers = [];
+    this.carRefs = [React.createRef(), React.createRef()];
+    this.rafs = [null, null];
+  }
+  componentWillUnmount() { this.timers.forEach(clearTimeout); }
+  setDev(i, patch) { this.setState(s => { const devs = s.devs.slice(); devs[i] = Object.assign({}, devs[i], patch); return { devs }; }); }
+  toast(i, msg) { this.setDev(i, { toast: msg }); this.timers.push(setTimeout(() => this.setDev(i, { toast: null }), 2400)); }
+  launch(i, g) {
+    this.setDev(i, { launching: g.id });
+    this.timers.push(setTimeout(() => { this.setDev(i, { launching: null }); this.toast(i, '▶ ' + g.title + ' running in ' + g.via); }, 2000));
+  }
+  startScan(i) {
+    this.setDev(i, { screen: 'scan', scanPct: 0, scanDone: false });
+    const step = () => {
+      const d = this.state.devs[i];
+      if (d.screen !== 'scan') return;
+      const next = Math.min(100, d.scanPct + 6 + Math.random() * 12);
+      this.setDev(i, { scanPct: next, scanDone: next >= 100 });
+      if (next < 100) this.timers.push(setTimeout(step, 260));
+    };
+    this.timers.push(setTimeout(step, 300));
+  }
+  toggleFav(id) { this.setState(s => ({ favs: { ...s.favs, [id]: !s.favs[id] } })); }
+  allGames() { return this.GAMES.concat(this.state.added); }
+  sorted(sort) {
+    const favs = this.state.favs;
+    const all = this.allGames().filter(g => !this.state.srcOff[g.source]);
+    const byHours = (a, b) => b.hours - a.hours;
+    if (sort === 'most') return all.slice().sort(byHours);
+    if (sort === 'recent') return all.slice().sort((a, b) => (a.lastOrd ?? 99) - (b.lastOrd ?? 99));
+    if (sort === 'az') return all.slice().sort((a, b) => a.title.localeCompare(b.title));
+    return all.slice().sort((a, b) => (favs[b.id] ? 1 : 0) - (favs[a.id] ? 1 : 0) || byHours(a, b));
+  }
+  buildDev(i, wide) {
+    const d = this.state.devs[i];
+    const acc = this.props.accent ?? '#0a7cff';
+    const favs = this.state.favs;
+    const games = this.sorted(d.sort);
+    const cardW = wide ? 230 : 190, gap = wide ? 18 : 14, step = cardW + gap;
+    const innerW = (wide ? 720 : 352) - 16;
+    const pad = Math.max(0, (innerW - cardW) / 2);
+    const focusIdx = Math.min(d.focus, Math.max(0, games.length - 1));
+    const fg = games[focusIdx] || games[0];
+    const hLabel = g => (g.hours >= 10 ? Math.round(g.hours) : g.hours) + ' h';
+    const openGame = g => () => this.setDev(i, { selId: g.id, screen: 'detail' });
+    const scrollToIdx = idx => { const el = this.carRefs[i].current; if (el) el.scrollTo({ left: idx * step, behavior: 'smooth' }); };
+    const onCarScroll = e => {
+      const el = e.target;
+      if (this.rafs[i]) cancelAnimationFrame(this.rafs[i]);
+      this.rafs[i] = requestAnimationFrame(() => {
+        const idx = Math.max(0, Math.min(games.length - 1, Math.round(el.scrollLeft / step)));
+        if (idx !== this.state.devs[i].focus) this.setDev(i, { focus: idx });
+      });
+    };
+    const carGames = games.map((g, gi) => ({
+      letter: g.letter, short: g.short, fav: !!favs[g.id],
+      click: () => (gi === focusIdx ? openGame(g)() : scrollToIdx(gi)),
+      style: {
+        flex: 'none', width: cardW + 'px', aspectRatio: '3/4', borderRadius: '20px', position: 'relative',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: 'pointer',
+        scrollSnapAlign: 'center', background: g.grad,
+        transform: gi === focusIdx ? 'scale(1)' : 'scale(.88)',
+        opacity: gi === focusIdx ? 1 : 0.65,
+        transition: 'transform .35s cubic-bezier(.2,.8,.2,1), opacity .35s, box-shadow .35s',
+        boxShadow: gi === focusIdx ? '0 18px 40px rgba(0,0,0,.22)' : '0 6px 16px rgba(0,0,0,.10)',
+      },
+    }));
+    const sel = this.allGames().find(g => g.id === d.selId) || this.GAMES[0];
+    const maxBar = Math.max(...sel.hist, 0.1);
+    const saves = (sel.saves || [{ slot: '1', note: 'Auto save', time: sel.last }, { slot: '2', note: 'Manual save', time: sel.last }]).map(sv => ({ ...sv, load: () => this.launch(i, sel) }));
+    const ach = sel.ach && sel.ach[1] > 0 ? sel.ach : null;
+    const results = this.CATALOG.filter(c => !d.addQ.trim() || c.title.toLowerCase().includes(d.addQ.trim().toLowerCase()));
+    const addedTitles = this.state.added.map(g => g.title);
+    const sorts = [['favs', '★'], ['most', 'Most played'], ['recent', 'Recent'], ['az', 'A–Z']].map(([k, label]) => ({
+      label, onClick: () => this.setDev(i, { sort: k, focus: 0 }),
+      style: { border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '10.5px', fontWeight: 600, padding: '5px 10px', borderRadius: '99px', background: d.sort === k ? '#fff' : 'transparent', color: d.sort === k ? '#1d1d1f' : '#86868b', boxShadow: d.sort === k ? '0 1px 3px rgba(0,0,0,.12)' : 'none' },
+    }));
+    const tabs = ['library', 'stats', 'settings'].map((t, ti) => ({
+      label: ['Library', 'Stats', 'Settings'][ti], glyph: ['▦', '◔', '⚙'][ti],
+      onClick: () => this.setDev(i, { screen: t }),
+      style: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', padding: '6px 0 8px', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', color: d.screen === t ? acc : '#86868b' },
+    }));
+    const total = games.reduce((a, g) => a + g.hours, 0);
+    const week = games.reduce((a, g) => a + g.hist.reduce((x, y) => x + y, 0), 0);
+    const top = games.slice().sort((a, b) => b.hours - a.hours).slice(0, 5);
+    const bySrc = this.SOURCES.map(s => { const gs = games.filter(g => g.source === s); return gs.length ? { name: s, games: gs.length + (gs.length > 1 ? ' games' : ' game'), hours: Math.round(gs.reduce((a, g) => a + g.hours, 0)) + ' h' } : null; }).filter(Boolean);
+    const launchingGame = d.launching ? this.allGames().find(g => g.id === d.launching) : null;
+    const fgFav = fg && !!favs[fg.id];
+    return {
+      label: wide ? 'UNFOLDED · 7.6″ MAIN DISPLAY' : 'FOLDED · 5.5″ COVER DISPLAY',
+      caption: wide ? 'Cinematic carousel scales up; detail is two-column' : 'Snap carousel, one game in focus at a time',
+      frameW: wide ? 720 : 352, frameH: wide ? 760 : 804,
+      onLibrary: d.screen === 'library', onDetail: d.screen === 'detail', onAdd: d.screen === 'add', onStats: d.screen === 'stats', onSettings: d.screen === 'settings', onScan: d.screen === 'scan',
+      showNav: ['library', 'stats', 'settings'].includes(d.screen),
+      carRef: this.carRefs[i], onCarScroll,
+      carGap: gap + 'px', carPad: '18px ' + pad + 'px 16px ' + pad + 'px',
+      carGames,
+      focusGrad: fg ? fg.grad : '#fff',
+      focusTitle: fg ? fg.title : '', focusMeta: fg ? fg.source + ' · ' + fg.plat + ' · ' + hLabel(fg) + ' played · last ' + fg.last.toLowerCase() : '',
+      focusLaunch: () => fg && this.launch(i, fg),
+      focusOpen: () => fg && openGame(fg)(),
+      focusFavToggle: () => fg && this.toggleFav(fg.id),
+      favBtnGlyph: fgFav ? '★' : '☆',
+      favBtnStyle: { width: '42px', height: '42px', borderRadius: '50%', border: '1px solid rgba(0,0,0,.07)', cursor: 'pointer', fontSize: '17px', background: fgFav ? '#fff4d6' : 'rgba(255,255,255,.85)', color: fgFav ? '#f5a623' : '#86868b', boxShadow: '0 1px 4px rgba(0,0,0,.05)' },
+      sorts, shownCount: games.length,
+      shownGames: games.map(g => ({ title: g.title, letter: g.letter, grad: g.grad, fav: !!favs[g.id], sub: hLabel(g) + ' · ' + g.source, open: openGame(g) })),
+      gridStyle: { display: 'grid', gridTemplateColumns: 'repeat(' + (wide ? 5 : 3) + ',1fr)', gap: wide ? '16px' : '12px', padding: '12px 22px 90px' },
+      goAdd: () => this.setDev(i, { screen: 'add', addQ: '' }),
+      goLibrary: () => this.setDev(i, { screen: 'library' }),
+      selFavToggle: () => this.toggleFav(sel.id),
+      selFavColor: favs[sel.id] ? '#f5a623' : '#b9b9c0',
+      detailCols: { display: 'grid', gridTemplateColumns: wide ? '1fr 1fr' : '1fr', columnGap: '28px', padding: '0 22px 10px', marginTop: '-6px', position: 'relative' },
+      statsCols: { display: 'grid', gridTemplateColumns: wide ? '1fr 1fr' : '1fr', columnGap: '28px', padding: '16px 22px 90px' },
+      sel: {
+        title: sel.title, letter: sel.letter, grad: sel.grad, source: sel.source, plat: sel.plat, via: sel.via,
+        hoursLabel: hLabel(sel), last: sel.last, saveCount: saves.length,
+        launch: () => this.launch(i, sel), saves,
+        bars: sel.hist.map(h => ({ h: Math.max(6, (h / maxBar) * 100) + '%', color: h > 0 ? acc : 'rgba(0,0,0,.07)' })),
+        hasShots: !!sel.shots,
+        shots: sel.shots || [],
+        achLabel: ach ? ach[0] + ' of ' + ach[1] + ' unlocked' : 'Not tracked for this title',
+        achPct: ach ? Math.round((ach[0] / ach[1]) * 100) + '%' : '0%',
+        achLatest: ach ? '“Marathon runner” · 2 days ago' : 'Enable RetroAchievements in Settings',
+        pad: sel.pad || '8BitDo Ultimate (Bluetooth)', padPreset: sel.preset || (sel.via + ' · default profile'),
+        note: this.state.notes[sel.id] || '',
+        onNote: e => this.setState(s => ({ notes: { ...s.notes, [sel.id]: e.target.value } })),
+      },
+      addQ: d.addQ, onAddQ: e => this.setDev(i, { addQ: e.target.value }),
+      addResults: results.map(c => {
+        const added = addedTitles.includes(c.title);
+        return { title: c.title, meta: c.plat + ' · launches via ' + c.src, grad: c.grad, letter: c.letter, btn: added ? '✓ Added' : '+ Add',
+          add: () => { if (added) return; this.setState(s => ({ added: s.added.concat([{ id: 'add' + s.added.length, title: c.title, plat: c.plat, source: c.src, short: c.src.slice(0, 6).toUpperCase(), via: c.src, letter: c.letter, grad: c.grad, hours: 0, last: 'Never', lastOrd: 99, ach: [0, 0], hist: [0, 0, 0, 0, 0, 0, 0] }]) })); this.toast(i, '✓ ' + c.title + ' added to library'); } };
+      }),
+      stTotal: Math.round(total) + ' h', stWeek: week.toFixed(1) + ' h',
+      stTop: top.map(g => ({ title: g.title, hours: hLabel(g), grad: g.grad, w: Math.round((g.hours / top[0].hours) * 100) + '%' })),
+      stSources: bySrc,
+      srcRows: this.SOURCES.map(s => { const on = !this.state.srcOff[s]; return { name: s, desc: this.SRC_DESC[s], toggle: () => this.setState(st => ({ srcOff: { ...st.srcOff, [s]: !st.srcOff[s] } })), tBg: on ? '#34c759' : 'rgba(0,0,0,.12)', tX: on ? '19.5px' : '2.5px' }; }),
+      rescan: () => this.startScan(i),
+      scanSpin: d.scanDone ? 'none' : 'block', scanDoneShow: d.scanDone ? 'block' : 'none',
+      scanTitle: d.scanDone ? 'Scan complete' : 'Scanning sources…',
+      scanSub: d.scanDone ? games.length + ' games found across ' + bySrc.length + ' sources' : 'Reading Play Store, emulator folders and APKs',
+      scanPct: Math.round(d.scanPct) + '%',
+      scanLog: d.scanDone ? 'done · library up to date' : ['/Cemu/games', '/ROMs/dolphin', '/ROMs/switch', 'Play Store index', '/ROMs/psp'][Math.floor(d.scanPct / 21)] || 'finalizing…',
+      launching: !!launchingGame, launchTitle: launchingGame ? 'Launching ' + launchingGame.title : '', launchSub: launchingGame ? 'Handing off to ' + launchingGame.via + ' — resuming last save state' : '',
+      tabs, toast: d.toast,
+    };
+  }
+  renderVals() {
+    const showUnfolded = this.props.showUnfolded ?? true;
+    const devices = [this.buildDev(0, false)];
+    if (showUnfolded) devices.push(this.buildDev(1, true));
+    return { devices, accent: this.props.accent ?? '#0a7cff' };
+  }
+}
+</script>
+</body>
+</html>
