@@ -8,12 +8,14 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import com.mediavault.app.data.BoxArt
 import com.mediavault.app.data.Category
 import com.mediavault.app.data.DeviceMedia
 import com.mediavault.app.data.Emulators
 import com.mediavault.app.data.GameSystem
 import com.mediavault.app.data.DocFile
 import com.mediavault.app.data.InstalledApps
+import com.mediavault.app.data.LibraryFolder
 import com.mediavault.app.data.LocalScanner
 import com.mediavault.app.data.MediaAccess
 import com.mediavault.app.data.MediaItem
@@ -21,6 +23,7 @@ import com.mediavault.app.data.ScanResult
 import com.mediavault.app.data.Track
 import com.mediavault.app.data.VaultStore
 import com.mediavault.app.data.VaultUser
+import com.mediavault.app.data.VideoFilters
 import com.mediavault.app.data.WatchedFolder
 import com.mediavault.app.media.AudioController
 import com.mediavault.app.util.RomLauncher
@@ -47,6 +50,7 @@ class AppState(private val context: Context) {
 
     private val store = VaultStore(context)
     private val audio = AudioController(context)
+    private val boxArt = BoxArt(context)
 
     var tab by mutableStateOf(Tab.HOME)
     var category by mutableStateOf(Category.MOVIES)
@@ -65,6 +69,8 @@ class AppState(private val context: Context) {
         private set
 
     val folders = mutableStateListOf<WatchedFolder>()
+    /** Folders that define what Movies and TV mean on this phone. */
+    val libraryFolders = mutableStateListOf<LibraryFolder>()
     val users = mutableStateListOf<VaultUser>()
     var connected by mutableStateOf(emptySet<String>())
     var accentIndex by mutableStateOf(0)
@@ -74,6 +80,10 @@ class AppState(private val context: Context) {
         private set
     /** Set when a ROM is tapped and more than one emulator could run it. */
     var emulatorPrompt by mutableStateOf<EmulatorPrompt?>(null)
+    /** Set when the user asks to give a ROM its own cover. */
+    var artTarget by mutableStateOf<MediaItem?>(null)
+    var fetchingArt by mutableStateOf(false)
+    private var artOverrides by mutableStateOf(emptyMap<String, String>())
     private var progress by mutableStateOf(emptyMap<String, Int>())
 
     val accent: Color get() = Mv.AccentChoices[accentIndex.coerceIn(0, Mv.AccentChoices.lastIndex)]
@@ -87,12 +97,17 @@ class AppState(private val context: Context) {
         accentIndex = store.loadAccentIndex()
         progress = store.loadProgress()
         emulators = store.loadEmulators()
+        artOverrides = boxArt.overrides()
+        libraryFolders.addAll(store.loadLibraryFolders())
     }
 
     // ---- the library -----------------------------------------------------
 
     /** ROMs first — they are the games; installed game apps come after. */
-    val roms: List<MediaItem> get() = library.media.filter { it.category == Category.GAMES }
+    val roms: List<MediaItem>
+        get() = library.media
+            .filter { it.category == Category.GAMES }
+            .map { rom -> artOverrides[rom.id]?.let { rom.copy(artUri = it) } ?: rom }
     val games: List<MediaItem> get() = roms + installedGames
 
     val romSystems: List<GameSystem>
@@ -188,6 +203,75 @@ class AppState(private val context: Context) {
         emulatorPrompt = null
     }
 
+    // ---- box art ---------------------------------------------------------
+
+    val romsMissingArt: List<MediaItem> get() = roms.filter { it.artUri == null }
+
+    fun askForArt(rom: MediaItem) {
+        artTarget = rom
+    }
+
+    fun dismissArtTarget() {
+        artTarget = null
+    }
+
+    /** Uses an image the user picked out of their own storage. */
+    fun importArt(rom: MediaItem, source: Uri) {
+        if (boxArt.importFrom(rom.id, source)) {
+            artOverrides = boxArt.overrides()
+            showToast("Cover set for ${rom.title}")
+        } else {
+            showToast("Couldn't read that image")
+        }
+        artTarget = null
+    }
+
+    fun clearArt(rom: MediaItem) {
+        boxArt.clear(rom.id)
+        artOverrides = boxArt.overrides()
+        artTarget = null
+    }
+
+    /** Fetches one cover from the libretro archive. Network, so always user-initiated. */
+    suspend fun downloadArt(rom: MediaItem) {
+        val system = Emulators.systems.firstOrNull { it.id == rom.systemId } ?: return
+        artTarget = null
+        fetchingArt = true
+        try {
+            val found = withContext(Dispatchers.IO) { boxArt.download(rom, system) }
+            artOverrides = boxArt.overrides()
+            showToast(
+                if (found) "Cover found for ${rom.title}"
+                else "No cover in the archive for ${rom.title}"
+            )
+        } finally {
+            fetchingArt = false
+        }
+    }
+
+    /** Fills in every ROM that still has no cover. */
+    suspend fun downloadMissingArt() {
+        val targets = romsMissingArt
+        if (targets.isEmpty()) {
+            showToast("Every ROM already has a cover")
+            return
+        }
+        fetchingArt = true
+        showToast("Looking up ${targets.size} covers…")
+        try {
+            val found = withContext(Dispatchers.IO) {
+                targets.count { rom ->
+                    val system = Emulators.systems.firstOrNull { it.id == rom.systemId }
+                    system != null && boxArt.download(rom, system)
+                }
+            }
+            artOverrides = boxArt.overrides()
+            showToast("Found $found of ${targets.size} covers")
+        } finally {
+            fetchingArt = false
+        }
+    }
+
     fun closePlayer(atPercent: Int) {
         player?.itemId?.let { setProgress(it, atPercent) }
         player = null
@@ -233,13 +317,20 @@ class AppState(private val context: Context) {
         scanning = true
         try {
             val folderSnapshot = folders.toList()
+            val filters = videoFilters()
+            val libraries = libraryFolders.toList()
             val result = withContext(Dispatchers.IO) {
-                val device = if (hasMediaAccess) DeviceMedia.scan(context) else ScanResult()
+                val device = if (hasMediaAccess) DeviceMedia.scan(context, filters) else ScanResult()
                 val perFolder = folderSnapshot.associate { it.uri to LocalScanner.scan(context, it.uri) }
-                device to perFolder
+                // Designated folders are scanned directly too, so files MediaStore has not
+                // indexed still land in the right category.
+                val designated = libraries.map { LocalScanner.scan(context, it.uri, it.category) }
+                Triple(device, perFolder, designated)
             }
-            val (device, perFolder) = result
-            library = perFolder.values.fold(device) { acc, next -> acc + next }.deduped()
+            val (device, perFolder, designated) = result
+            library = (perFolder.values + designated)
+                .fold(device) { acc, next -> acc + next }
+                .deduped()
 
             folderSnapshot.forEachIndexed { index, folder ->
                 val scan = perFolder[folder.uri] ?: ScanResult()
@@ -254,6 +345,40 @@ class AppState(private val context: Context) {
             scanning = false
             scannedOnce = true
         }
+    }
+
+    private fun videoFilters() = VideoFilters(
+        movies = libraryFolders.filter { it.category == Category.MOVIES }.map { it.path },
+        tv = libraryFolders.filter { it.category == Category.TV }.map { it.path },
+    )
+
+    fun libraryFoldersFor(category: Category): List<LibraryFolder> =
+        libraryFolders.filter { it.category == category }
+
+    /** Pins a category to a folder: from now on only files inside it are listed there. */
+    suspend fun addLibraryFolder(uri: Uri, category: Category) {
+        val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        runCatching { context.contentResolver.takePersistableUriPermission(uri, flags) }
+        val path = documentPath(uri)
+        if (libraryFolders.none { it.uri == uri.toString() && it.category == category }) {
+            libraryFolders.add(LibraryFolder(uri.toString(), path, category))
+            store.saveLibraryFolders(libraryFolders.toList())
+        }
+        showToast("${category.label} now comes from /$path")
+        rescan()
+    }
+
+    suspend fun removeLibraryFolder(folder: LibraryFolder) {
+        libraryFolders.remove(folder)
+        store.saveLibraryFolders(libraryFolders.toList())
+        rescan()
+    }
+
+    /** "primary:Movies/Films" from a picked tree uri becomes "Movies/Films". */
+    private fun documentPath(uri: Uri): String {
+        val docId = runCatching { android.provider.DocumentsContract.getTreeDocumentId(uri) }.getOrNull()
+            ?: uri.lastPathSegment.orEmpty()
+        return docId.substringAfter(':').trim('/')
     }
 
     private fun summarize(result: ScanResult): String {

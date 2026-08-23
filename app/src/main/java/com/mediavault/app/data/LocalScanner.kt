@@ -20,14 +20,18 @@ object LocalScanner {
     private const val MAX_DEPTH = 5
     private const val MAX_ITEMS = 1500
 
-    fun scan(context: Context, folderUri: String): ScanResult {
+    /**
+     * [forceCategory] pins everything found here to one category — used for the folders the
+     * user designated as their Movies or TV libraries.
+     */
+    fun scan(context: Context, folderUri: String, forceCategory: Category? = null): ScanResult {
         val root = runCatching { DocumentFile.fromTreeUri(context, Uri.parse(folderUri)) }.getOrNull()
             ?: return ScanResult()
         val videos = mutableListOf<MediaItem>()
         val episodes = mutableMapOf<String, MutableList<EpisodeFile>>()
         val tracks = mutableListOf<Track>()
         val docs = mutableListOf<DocFile>()
-        walk(root, 0, videos, episodes, tracks, docs)
+        walk(root, 0, videos, episodes, tracks, docs, forceCategory)
 
         val shows = episodes.map { (title, files) ->
             val sorted = files.sortedWith(compareBy({ it.season }, { it.number }))
@@ -47,7 +51,9 @@ object LocalScanner {
                 artUri = sorted.first().uri,
             )
         }
-        return ScanResult(videos + shows, tracks, docs)
+        val pinned = if (forceCategory == null) videos + shows
+        else (videos + shows).map { if (it.category == Category.GAMES) it else it.copy(category = forceCategory) }
+        return ScanResult(pinned, tracks, docs)
     }
 
     private fun walk(
@@ -57,13 +63,14 @@ object LocalScanner {
         episodes: MutableMap<String, MutableList<EpisodeFile>>,
         tracks: MutableList<Track>,
         docs: MutableList<DocFile>,
+        forceCategory: Category?,
     ) {
         if (depth > MAX_DEPTH) return
         if (videos.size + tracks.size + docs.size > MAX_ITEMS) return
         val children = runCatching { dir.listFiles() }.getOrDefault(emptyArray())
         for (child in children) {
             if (child.isDirectory) {
-                walk(child, depth + 1, videos, episodes, tracks, docs)
+                walk(child, depth + 1, videos, episodes, tracks, docs, forceCategory)
                 continue
             }
             val name = child.name ?: continue
@@ -127,6 +134,7 @@ object LocalScanner {
             sizeBytes = size,
             addedAt = modified,
             systemId = system.id,
+            fileName = name,
             artUri = null,
         )
     }

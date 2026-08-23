@@ -55,6 +55,32 @@ class VaultStore(context: Context) {
         prefs.edit().putString(KEY_EMULATORS, obj.toString()).apply()
     }
 
+    /** Folders that define what counts as Movies and what counts as TV. */
+    fun loadLibraryFolders(): List<LibraryFolder> = readArray(KEY_LIBRARY_FOLDERS).mapNotNull {
+        val category = runCatching { Category.valueOf(it.optString("category")) }.getOrNull()
+            ?: return@mapNotNull null
+        LibraryFolder(it.optString("uri"), it.optString("path"), category)
+    }
+
+    fun saveLibraryFolders(folders: List<LibraryFolder>) = writeArray(KEY_LIBRARY_FOLDERS, folders) {
+        JSONObject().put("uri", it.uri).put("path", it.path).put("category", it.category.name)
+    }
+
+    /** romId → absolute path of an imported or downloaded cover. */
+    fun loadBoxArt(): Map<String, String> {
+        val raw = prefs.getString(KEY_BOXART, null) ?: return emptyMap()
+        return runCatching {
+            val obj = JSONObject(raw)
+            obj.keys().asSequence().associateWith { obj.getString(it) }
+        }.getOrDefault(emptyMap())
+    }
+
+    fun saveBoxArt(art: Map<String, String>) {
+        val obj = JSONObject()
+        art.forEach { (romId, path) -> obj.put(romId, path) }
+        prefs.edit().putString(KEY_BOXART, obj.toString()).apply()
+    }
+
     fun loadAccentIndex(): Int = prefs.getInt(KEY_ACCENT, 0)
 
     fun saveAccentIndex(index: Int) = prefs.edit().putInt(KEY_ACCENT, index).apply()
@@ -90,6 +116,8 @@ class VaultStore(context: Context) {
         const val KEY_USERS = "users"
         const val KEY_CONNECTED = "connected"
         const val KEY_EMULATORS = "emulators"
+        const val KEY_BOXART = "boxart"
+        const val KEY_LIBRARY_FOLDERS = "library_folders"
         const val KEY_ACCENT = "accent"
         const val KEY_PROGRESS = "progress"
     }

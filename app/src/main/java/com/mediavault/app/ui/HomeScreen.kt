@@ -283,6 +283,9 @@ private fun PosterRow(
                     tag = item.tag,
                     progress = state.progressOf(item),
                     artUri = item.artUri,
+                    onLongClick = if (item.systemId != null) {
+                        { state.askForArt(item) }
+                    } else null,
                     modifier = Modifier.width(width),
                 ) {
                     if (item.category == Category.GAMES) launchGame(state, context, item)

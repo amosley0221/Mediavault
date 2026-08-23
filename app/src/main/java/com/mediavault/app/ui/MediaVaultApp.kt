@@ -51,6 +51,11 @@ fun MediaVaultApp(state: AppState) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    val artPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        val rom = state.artTarget
+        if (uri != null && rom != null) state.importArt(rom, uri) else state.dismissArtTarget()
+    }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { granted ->
@@ -163,6 +168,18 @@ fun MediaVaultApp(state: AppState) {
                         bottomInset = bottomInset,
                     ) { state.tab = it; state.closeDetail() }
                 }
+            }
+
+            state.artTarget?.let { rom ->
+                BoxArtDialog(
+                    rom = rom,
+                    hasCustomArt = rom.artUri != null,
+                    fetching = state.fetchingArt,
+                    onDismiss = { state.dismissArtTarget() },
+                    onPickImage = { artPicker.launch("image/*") },
+                    onDownload = { scope.launch { state.downloadArt(rom) } },
+                    onClear = { state.clearArt(rom) },
+                )
             }
 
             state.emulatorPrompt?.let { prompt ->

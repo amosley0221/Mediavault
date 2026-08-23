@@ -49,6 +49,8 @@ data class MediaItem(
     val filePath: String? = null,
     /** [GameSystem.id] when this item is a ROM. */
     val systemId: String? = null,
+    /** The untouched filename — box-art lookups match on it, not the cleaned title. */
+    val fileName: String? = null,
     /** Uri whose thumbnail represents this item (an episode's, for a show). */
     val artUri: String? = uri,
 )
@@ -86,6 +88,13 @@ data class ServiceDef(
     val launchUri: String,
     val packageHint: String? = null,
 )
+
+/**
+ * A folder the user designated as the home of one category. When any exist for a category,
+ * only files inside them are listed there — which is how "Movies" stops meaning "every video
+ * on the phone, including WhatsApp clips".
+ */
+data class LibraryFolder(val uri: String, val path: String, val category: Category)
 
 data class WatchedFolder(val uri: String, val path: String, val meta: String)
 

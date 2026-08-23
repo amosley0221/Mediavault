@@ -36,6 +36,37 @@ data class ScanResult(
  * Reads what is actually on the phone through MediaStore: every video, every track, and —
  * when the user grants all-files access — the documents too. No catalogue, no placeholders.
  */
+/**
+ * Which folders count as Movies and which count as TV. An empty list for a category means
+ * "anywhere on the phone"; once a folder is named, nothing outside it qualifies.
+ */
+data class VideoFilters(
+    val movies: List<String> = emptyList(),
+    val tv: List<String> = emptyList(),
+) {
+    private fun matches(folders: List<String>, path: String): Boolean {
+        val normalised = path.lowercase(Locale.US).trim('/')
+        return folders.any { folder ->
+            val target = folder.lowercase(Locale.US).trim('/')
+            target.isNotBlank() && (normalised == target || normalised.startsWith("$target/") ||
+                normalised.contains("/$target/") || normalised.endsWith("/$target"))
+        }
+    }
+
+    /** The category this path is pinned to, or null when it is in neither folder. */
+    fun categoryFor(path: String): Category? = when {
+        matches(tv, path) -> Category.TV
+        matches(movies, path) -> Category.MOVIES
+        else -> null
+    }
+
+    fun hasFilterFor(category: Category): Boolean = when (category) {
+        Category.TV -> tv.isNotEmpty()
+        Category.MOVIES -> movies.isNotEmpty()
+        else -> false
+    }
+}
+
 object DeviceMedia {
 
     private val EPISODE = Regex("""(?i)^(.*?)[._\s-]+s(\d{1,2})[._\s-]?e(\d{1,3})""")
@@ -48,10 +79,10 @@ object DeviceMedia {
         "epub", "zip", "rar", "7z", "apk", "json", "odt", "ods",
     )
 
-    fun scan(context: Context): ScanResult {
+    fun scan(context: Context, filters: VideoFilters = VideoFilters()): ScanResult {
         val storage = otherFiles(context)
         return ScanResult(
-            media = videos(context) + storage.roms,
+            media = videos(context, filters) + storage.roms,
             tracks = audio(context),
             documents = storage.documents,
         )
@@ -64,7 +95,8 @@ object DeviceMedia {
 
     // ---- video -----------------------------------------------------------
 
-    private fun videos(context: Context): List<MediaItem> {
+    @Suppress("DEPRECATION")
+    private fun videos(context: Context, filters: VideoFilters): List<MediaItem> {
         val projection = mutableListOf(
             MediaStore.Video.Media._ID,
             MediaStore.Video.Media.DISPLAY_NAME,
@@ -72,9 +104,11 @@ object DeviceMedia {
             MediaStore.Video.Media.SIZE,
             MediaStore.Video.Media.DATE_MODIFIED,
             MediaStore.Video.Media.MIME_TYPE,
+            MediaStore.Video.Media.DATA,
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             projection += MediaStore.Video.Media.BUCKET_DISPLAY_NAME
+            projection += MediaStore.Video.Media.RELATIVE_PATH
         }
 
         val singles = mutableListOf<MediaItem>()
@@ -92,10 +126,21 @@ object DeviceMedia {
             val mime = cursor.getString(MediaStore.Video.Media.MIME_TYPE)
             val folder = cursor.getString(MediaStore.Video.Media.BUCKET_DISPLAY_NAME).orEmpty()
             val uri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id).toString()
+            val dataPath = cursor.getString(MediaStore.Video.Media.DATA)
+            val relativePath = cursor.getString(MediaStore.Video.Media.RELATIVE_PATH)
+            val folderPath = relativePath ?: dataPath?.substringBeforeLast('/').orEmpty().ifBlank { folder }
 
             val base = name.substringBeforeLast('.')
             val episode = EPISODE.find(base)
-            if (episode != null) {
+
+            // A designated folder wins; otherwise the filename decides, and anything outside
+            // a configured folder is dropped from that category entirely.
+            val pinned = filters.categoryFor(folderPath)
+            val natural = if (episode != null) Category.TV else Category.MOVIES
+            val category = pinned ?: natural
+            if (pinned == null && filters.hasFilterFor(category)) return@query
+
+            if (episode != null && category == Category.TV) {
                 val show = clean(episode.groupValues[1])
                 val season = episode.groupValues[2].toIntOrNull() ?: 1
                 val number = episode.groupValues[3].toIntOrNull() ?: 1
@@ -125,7 +170,7 @@ object DeviceMedia {
                     gradient = gradientFor(title),
                     tag = folder.uppercase(Locale.US).take(10).ifBlank { "VIDEO" },
                     source = "This phone",
-                    category = Category.MOVIES,
+                    category = category,
                     uri = uri,
                     durationMs = duration,
                     sizeBytes = size,
@@ -133,6 +178,7 @@ object DeviceMedia {
                     mime = mime,
                     year = year,
                     addedAt = modified,
+                    filePath = dataPath,
                 )
             }
         }
@@ -296,6 +342,7 @@ object DeviceMedia {
             addedAt = file.lastModified(),
             filePath = file.absolutePath,
             systemId = system.id,
+            fileName = file.name,
             artUri = art?.let { Uri.fromFile(it).toString() },
         )
     }
@@ -339,6 +386,7 @@ object DeviceMedia {
                     sizeBytes = size,
                     addedAt = modified,
                     systemId = system.id,
+                    fileName = name,
                     artUri = null,
                 )
             } else if (ext in DOC_EXTENSIONS) {

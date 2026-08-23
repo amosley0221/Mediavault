@@ -1,8 +1,10 @@
 package com.mediavault.app.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -351,6 +353,7 @@ fun Chip(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PosterCard(
     title: String,
@@ -362,9 +365,15 @@ fun PosterCard(
     tag: String? = null,
     progress: Int = 0,
     artUri: String? = null,
+    onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
-    Column(modifier = modifier.clickable { onClick() }) {
+    val tapModifier = if (onLongClick != null) {
+        Modifier.combinedClickable(onLongClick = onLongClick, onClick = onClick)
+    } else {
+        Modifier.clickable { onClick() }
+    }
+    Column(modifier = modifier.then(tapModifier)) {
         ArtworkBox(
             letter = letter,
             gradient = gradient,

@@ -100,6 +100,9 @@ private fun PosterGrid(state: AppState, unfolded: Boolean, padding: PaddingValue
                 tag = item.tag,
                 progress = state.progressOf(item),
                 artUri = item.artUri,
+                onLongClick = if (item.systemId != null) {
+                    { state.askForArt(item) }
+                } else null,
             ) {
                 if (item.category == Category.GAMES) launchGame(state, context, item)
                 else state.openDetail(item)

@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.mediavault.app.data.Category
+import com.mediavault.app.data.LibraryFolder
 import com.mediavault.app.data.Emulators
 import com.mediavault.app.data.GameSystem
 import com.mediavault.app.data.MediaAccess
@@ -57,9 +58,16 @@ fun SourcesScreen(
     val accent = LocalAccent.current
     val context = LocalContext.current
     var editingSystem by remember { mutableStateOf<GameSystem?>(null) }
+    var pickingFor by remember { mutableStateOf<Category?>(null) }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) scope.launch { state.addFolder(uri) }
+    }
+
+    val libraryPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        val category = pickingFor
+        pickingFor = null
+        if (uri != null && category != null) scope.launch { state.addLibraryFolder(uri, category) }
     }
 
     LazyColumn(
@@ -97,6 +105,34 @@ fun SourcesScreen(
 
                 Spacer(Modifier.height(12.dp))
                 LibraryCounts(state)
+            }
+        }
+
+        item {
+            Column(modifier = Modifier.padding(horizontal = Mv.Gutter)) {
+                SectionHeader(title = "Movie & TV folders")
+                Spacer(Modifier.height(10.dp))
+                LibraryFolderGroup(
+                    state = state,
+                    category = Category.MOVIES,
+                    onAdd = { pickingFor = Category.MOVIES; libraryPicker.launch(null) },
+                    onRemove = { folder -> scope.launch { state.removeLibraryFolder(folder) } },
+                )
+                Spacer(Modifier.height(14.dp))
+                LibraryFolderGroup(
+                    state = state,
+                    category = Category.TV,
+                    onAdd = { pickingFor = Category.TV; libraryPicker.launch(null) },
+                    onRemove = { folder -> scope.launch { state.removeLibraryFolder(folder) } },
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Name a folder and that category shows nothing else — no camera clips, " +
+                        "no WhatsApp videos. Leave it empty and every video on the phone is listed.",
+                    color = Mv.Secondary,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp,
+                )
             }
         }
 
@@ -200,6 +236,55 @@ fun SourcesScreen(
 
         item {
             Column(modifier = Modifier.padding(horizontal = Mv.Gutter)) {
+                SectionHeader(title = "Box art")
+                Spacer(Modifier.height(10.dp))
+                val missing = state.romsMissingArt.size
+                CardSurface(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = if (state.fetchingArt) null else {
+                        { scope.launch { state.downloadMissingArt() } }
+                    },
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (state.fetchingArt) "Looking up covers…" else "Download missing covers",
+                                color = Mv.Text,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = if (missing == 0) "Every ROM has a cover"
+                                else "$missing without one · searches the libretro archive",
+                                color = Mv.Secondary,
+                                fontSize = 11.sp,
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = "›",
+                            color = Mv.Secondary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Long-press any game to set its cover by hand from a picture on this phone. " +
+                        "Downloads are the only time MediaVault touches the network.",
+                    color = Mv.Secondary,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp,
+                )
+            }
+        }
+
+        item {
+            Column(modifier = Modifier.padding(horizontal = Mv.Gutter)) {
                 SectionHeader(title = "Users")
                 Spacer(Modifier.height(10.dp))
                 CardSurface(modifier = Modifier.fillMaxWidth()) {
@@ -260,6 +345,58 @@ fun SourcesScreen(
             },
         )
     }
+}
+
+@Composable
+private fun LibraryFolderGroup(
+    state: AppState,
+    category: Category,
+    onAdd: () -> Unit,
+    onRemove: (LibraryFolder) -> Unit,
+) {
+    val folders = state.libraryFoldersFor(category)
+    Text(
+        text = category.label,
+        color = Mv.Text,
+        fontSize = 12.5.sp,
+        fontWeight = FontWeight.SemiBold,
+    )
+    Spacer(Modifier.height(6.dp))
+    if (folders.isEmpty()) {
+        Text(
+            text = "Every video folder on the phone",
+            color = Mv.Secondary,
+            fontSize = 11.sp,
+        )
+        Spacer(Modifier.height(6.dp))
+    } else {
+        folders.forEach { folder ->
+            CardSurface(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "/" + folder.path,
+                        color = Mv.Text,
+                        fontSize = 12.5.sp,
+                        fontFamily = Mv.Mono,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = "✕",
+                        color = Mv.Secondary,
+                        fontSize = 14.sp,
+                        modifier = Modifier.clickable { onRemove(folder) }.padding(6.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+    DashedAddRow(text = "+ Set a ${category.label.lowercase()} folder", onClick = onAdd)
 }
 
 @Composable
