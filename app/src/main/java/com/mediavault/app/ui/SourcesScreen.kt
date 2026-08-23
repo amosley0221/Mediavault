@@ -37,7 +37,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.mediavault.app.data.Category
+import com.mediavault.app.data.FolderRule
 import com.mediavault.app.data.LibraryFolder
+import com.mediavault.app.data.VideoFolder
 import com.mediavault.app.data.Emulators
 import com.mediavault.app.data.GameSystem
 import com.mediavault.app.data.MediaAccess
@@ -59,6 +61,7 @@ fun SourcesScreen(
     val context = LocalContext.current
     var editingSystem by remember { mutableStateOf<GameSystem?>(null) }
     var pickingFor by remember { mutableStateOf<Category?>(null) }
+    var sortingFolder by remember { mutableStateOf<VideoFolder?>(null) }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) scope.launch { state.addFolder(uri) }
@@ -110,7 +113,38 @@ fun SourcesScreen(
 
         item {
             Column(modifier = Modifier.padding(horizontal = Mv.Gutter)) {
-                SectionHeader(title = "Movie & TV folders")
+                SectionHeader(title = "Video folders")
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Every folder on the phone that holds video. Sort each one into Movies " +
+                        "or TV, or hide it — that is how camera clips and WhatsApp videos stop " +
+                        "filling the library.",
+                    color = Mv.Secondary,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp,
+                )
+                Spacer(Modifier.height(10.dp))
+                if (state.videoFolders.isEmpty()) {
+                    Text(
+                        text = if (state.scanning) "Scanning…" else "No video folders found yet.",
+                        color = Mv.Secondary,
+                        fontSize = 11.sp,
+                    )
+                } else {
+                    state.videoFolders.forEach { folder ->
+                        VideoFolderRow(
+                            folder = folder,
+                            rule = state.ruleFor(folder),
+                        ) { sortingFolder = folder }
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+            }
+        }
+
+        item {
+            Column(modifier = Modifier.padding(horizontal = Mv.Gutter)) {
+                SectionHeader(title = "Folders elsewhere")
                 Spacer(Modifier.height(10.dp))
                 LibraryFolderGroup(
                     state = state,
@@ -127,8 +161,8 @@ fun SourcesScreen(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "Name a folder and that category shows nothing else — no camera clips, " +
-                        "no WhatsApp videos. Leave it empty and every video on the phone is listed.",
+                    text = "Point a category at a folder the system does not index — an SD card, a " +
+                        "USB drive. Once set, that category shows nothing outside it.",
                     color = Mv.Secondary,
                     fontSize = 11.sp,
                     lineHeight = 16.sp,
@@ -333,6 +367,18 @@ fun SourcesScreen(
         }
     }
 
+    sortingFolder?.let { folder ->
+        FolderRuleDialog(
+            folder = folder,
+            current = state.ruleFor(folder),
+            onDismiss = { sortingFolder = null },
+            onPick = { rule ->
+                sortingFolder = null
+                scope.launch { state.setFolderRule(folder, rule) }
+            },
+        )
+    }
+
     editingSystem?.let { system ->
         EmulatorPickerDialog(
             system = system,
@@ -344,6 +390,127 @@ fun SourcesScreen(
                 editingSystem = null
             },
         )
+    }
+}
+
+@Composable
+private fun VideoFolderRow(
+    folder: VideoFolder,
+    rule: FolderRule,
+    onClick: () -> Unit,
+) {
+    CardSurface(modifier = Modifier.fillMaxWidth(), onClick = onClick) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = folder.name.ifBlank { folder.path },
+                    color = if (rule == FolderRule.HIDDEN) Mv.Secondary else Mv.Text,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "${folder.count} video${if (folder.count == 1) "" else "s"} · /${folder.path}",
+                    color = Mv.Secondary,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = rule.label,
+                color = if (rule == FolderRule.AUTO) Mv.Secondary else LocalAccent.current,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+    }
+}
+
+@Composable
+private fun FolderRuleDialog(
+    folder: VideoFolder,
+    current: FolderRule,
+    onDismiss: () -> Unit,
+    onPick: (FolderRule) -> Unit,
+) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(Mv.Card)
+                .padding(20.dp),
+        ) {
+            Text(
+                text = folder.name.ifBlank { folder.path },
+                color = Mv.Text,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "${folder.count} videos · /${folder.path}",
+                color = Mv.Secondary,
+                fontSize = 12.sp,
+            )
+            Spacer(Modifier.height(16.dp))
+
+            FolderRule.entries.forEach { rule ->
+                CardSurface(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { onPick(rule) },
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = rule.label,
+                                color = Mv.Text,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = when (rule) {
+                                    FolderRule.AUTO -> "Let the filename decide"
+                                    FolderRule.MOVIES -> "List these under Movies"
+                                    FolderRule.TV -> "List these under TV"
+                                    FolderRule.HIDDEN -> "Keep these out of the library"
+                                },
+                                color = Mv.Secondary,
+                                fontSize = 11.sp,
+                            )
+                        }
+                        if (rule == current) {
+                            Text(
+                                text = "✓",
+                                color = Mv.Watched,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
+            Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Cancel",
+                    color = LocalAccent.current,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clickable { onDismiss() }.padding(6.dp),
+                )
+            }
+        }
     }
 }
 

@@ -89,6 +89,21 @@ data class ServiceDef(
     val packageHint: String? = null,
 )
 
+/** A folder on the phone that holds videos, with how many it holds. */
+data class VideoFolder(val path: String, val name: String, val count: Int)
+
+/** What a folder's videos count as. AUTO leaves it to the filename. */
+enum class FolderRule { AUTO, MOVIES, TV, HIDDEN;
+
+    val label: String
+        get() = when (this) {
+            AUTO -> "Auto"
+            MOVIES -> "Movies"
+            TV -> "TV"
+            HIDDEN -> "Hidden"
+        }
+}
+
 /**
  * A folder the user designated as the home of one category. When any exist for a category,
  * only files inside them are listed there — which is how "Movies" stops meaning "every video

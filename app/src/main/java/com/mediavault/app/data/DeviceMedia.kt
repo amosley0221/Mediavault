@@ -15,6 +15,8 @@ data class ScanResult(
     val media: List<MediaItem> = emptyList(),
     val tracks: List<Track> = emptyList(),
     val documents: List<DocFile> = emptyList(),
+    /** Every folder holding videos — including ones currently filtered out of the library. */
+    val videoFolders: List<VideoFolder> = emptyList(),
 ) {
     val total: Int get() = media.size + tracks.size + documents.size
 
@@ -22,6 +24,9 @@ data class ScanResult(
         media + other.media,
         tracks + other.tracks,
         documents + other.documents,
+        (videoFolders + other.videoFolders)
+            .groupBy { it.path }
+            .map { (path, group) -> VideoFolder(path, group.first().name, group.sumOf { it.count }) },
     )
 
     /** Same file found by two scanners (MediaStore and a watched folder) shows up once. */
@@ -29,6 +34,7 @@ data class ScanResult(
         media.distinctBy { it.uri ?: it.id },
         tracks.distinctBy { it.uri },
         documents.distinctBy { it.uri },
+        videoFolders.sortedByDescending { it.count },
     )
 }
 
@@ -43,7 +49,22 @@ data class ScanResult(
 data class VideoFilters(
     val movies: List<String> = emptyList(),
     val tv: List<String> = emptyList(),
+    /** Folder path → [FolderRule] name, set by hand in Sources. Beats everything else. */
+    val rules: Map<String, String> = emptyMap(),
 ) {
+    /** The rule for a folder, inherited by anything nested inside it. */
+    fun ruleFor(path: String): FolderRule {
+        val normalised = path.lowercase(Locale.US).trim('/')
+        val match = rules.keys
+            .filter { key ->
+                val target = key.lowercase(Locale.US).trim('/')
+                target.isNotBlank() && (normalised == target || normalised.startsWith("$target/"))
+            }
+            .maxByOrNull { it.length }
+            ?: return FolderRule.AUTO
+        return runCatching { FolderRule.valueOf(rules.getValue(match)) }.getOrDefault(FolderRule.AUTO)
+    }
+
     private fun matches(folders: List<String>, path: String): Boolean {
         val normalised = path.lowercase(Locale.US).trim('/')
         return folders.any { folder ->
@@ -81,10 +102,12 @@ object DeviceMedia {
 
     fun scan(context: Context, filters: VideoFilters = VideoFilters()): ScanResult {
         val storage = otherFiles(context)
+        val videos = videos(context, filters)
         return ScanResult(
-            media = videos(context, filters) + storage.roms,
+            media = videos + storage.roms,
             tracks = audio(context),
             documents = storage.documents,
+            videoFolders = videoFolderCensus,
         )
     }
 
@@ -112,6 +135,7 @@ object DeviceMedia {
         }
 
         val singles = mutableListOf<MediaItem>()
+        val folderCounts = mutableMapOf<String, VideoFolder>()
         val shows = mutableMapOf<String, MutableList<EpisodeFile>>()
         val showArt = mutableMapOf<String, String>()
         val showAdded = mutableMapOf<String, Long>()
@@ -130,12 +154,26 @@ object DeviceMedia {
             val relativePath = cursor.getString(MediaStore.Video.Media.RELATIVE_PATH)
             val folderPath = relativePath ?: dataPath?.substringBeforeLast('/').orEmpty().ifBlank { folder }
 
+            val normalisedFolder = folderPath.trim('/')
+            folderCounts[normalisedFolder.lowercase(Locale.US)] = VideoFolder(
+                path = normalisedFolder,
+                name = folder.ifBlank { normalisedFolder.substringAfterLast('/') },
+                count = (folderCounts[normalisedFolder.lowercase(Locale.US)]?.count ?: 0) + 1,
+            )
+
             val base = name.substringBeforeLast('.')
             val episode = EPISODE.find(base)
 
-            // A designated folder wins; otherwise the filename decides, and anything outside
-            // a configured folder is dropped from that category entirely.
-            val pinned = filters.categoryFor(folderPath)
+            // Order of authority: a rule the user set on the folder, then a folder they
+            // designated for a category, then the filename. Anything outside a configured
+            // folder is dropped from that category entirely.
+            val rule = filters.ruleFor(normalisedFolder)
+            if (rule == FolderRule.HIDDEN) return@query
+            val pinned = when (rule) {
+                FolderRule.MOVIES -> Category.MOVIES
+                FolderRule.TV -> Category.TV
+                else -> filters.categoryFor(folderPath)
+            }
             val natural = if (episode != null) Category.TV else Category.MOVIES
             val category = pinned ?: natural
             if (pinned == null && filters.hasFilterFor(category)) return@query
@@ -205,8 +243,12 @@ object DeviceMedia {
             )
         }
 
+        videoFolderCensus = folderCounts.values.sortedByDescending { it.count }
         return singles + showItems
     }
+
+    /** Filled by the video pass so Sources can list folders even when they are filtered out. */
+    private var videoFolderCensus: List<VideoFolder> = emptyList()
 
     // ---- audio -----------------------------------------------------------
 

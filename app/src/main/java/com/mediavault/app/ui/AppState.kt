@@ -14,6 +14,7 @@ import com.mediavault.app.data.DeviceMedia
 import com.mediavault.app.data.Emulators
 import com.mediavault.app.data.GameSystem
 import com.mediavault.app.data.DocFile
+import com.mediavault.app.data.FolderRule
 import com.mediavault.app.data.InstalledApps
 import com.mediavault.app.data.LibraryFolder
 import com.mediavault.app.data.LocalScanner
@@ -24,6 +25,7 @@ import com.mediavault.app.data.Track
 import com.mediavault.app.data.VaultStore
 import com.mediavault.app.data.VaultUser
 import com.mediavault.app.data.VideoFilters
+import com.mediavault.app.data.VideoFolder
 import com.mediavault.app.data.WatchedFolder
 import com.mediavault.app.media.AudioController
 import com.mediavault.app.util.RomLauncher
@@ -71,6 +73,9 @@ class AppState(private val context: Context) {
     val folders = mutableStateListOf<WatchedFolder>()
     /** Folders that define what Movies and TV mean on this phone. */
     val libraryFolders = mutableStateListOf<LibraryFolder>()
+    /** Folder path → rule, for folders sorted by hand in Sources. */
+    var folderRules by mutableStateOf(emptyMap<String, String>())
+        private set
     val users = mutableStateListOf<VaultUser>()
     var connected by mutableStateOf(emptySet<String>())
     var accentIndex by mutableStateOf(0)
@@ -99,6 +104,7 @@ class AppState(private val context: Context) {
         emulators = store.loadEmulators()
         artOverrides = boxArt.overrides()
         libraryFolders.addAll(store.loadLibraryFolders())
+        folderRules = store.loadFolderRules()
     }
 
     // ---- the library -----------------------------------------------------
@@ -350,7 +356,22 @@ class AppState(private val context: Context) {
     private fun videoFilters() = VideoFilters(
         movies = libraryFolders.filter { it.category == Category.MOVIES }.map { it.path },
         tv = libraryFolders.filter { it.category == Category.TV }.map { it.path },
+        rules = folderRules,
     )
+
+    /** Every folder holding videos, busiest first — what Sources lists for sorting. */
+    val videoFolders: List<VideoFolder> get() = library.videoFolders
+
+    fun ruleFor(folder: VideoFolder): FolderRule =
+        videoFilters().ruleFor(folder.path)
+
+    /** Files in this folder are Movies, TV, hidden, or left to the filename. */
+    suspend fun setFolderRule(folder: VideoFolder, rule: FolderRule) {
+        folderRules = if (rule == FolderRule.AUTO) folderRules - folder.path
+        else folderRules + (folder.path to rule.name)
+        store.saveFolderRules(folderRules)
+        rescan()
+    }
 
     fun libraryFoldersFor(category: Category): List<LibraryFolder> =
         libraryFolders.filter { it.category == category }

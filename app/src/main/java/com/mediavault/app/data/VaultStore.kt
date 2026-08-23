@@ -66,6 +66,21 @@ class VaultStore(context: Context) {
         JSONObject().put("uri", it.uri).put("path", it.path).put("category", it.category.name)
     }
 
+    /** Folder path → [FolderRule] name, for folders the user sorted by hand. */
+    fun loadFolderRules(): Map<String, String> {
+        val raw = prefs.getString(KEY_FOLDER_RULES, null) ?: return emptyMap()
+        return runCatching {
+            val obj = JSONObject(raw)
+            obj.keys().asSequence().associateWith { obj.getString(it) }
+        }.getOrDefault(emptyMap())
+    }
+
+    fun saveFolderRules(rules: Map<String, String>) {
+        val obj = JSONObject()
+        rules.forEach { (path, rule) -> obj.put(path, rule) }
+        prefs.edit().putString(KEY_FOLDER_RULES, obj.toString()).apply()
+    }
+
     /** romId → absolute path of an imported or downloaded cover. */
     fun loadBoxArt(): Map<String, String> {
         val raw = prefs.getString(KEY_BOXART, null) ?: return emptyMap()
@@ -118,6 +133,7 @@ class VaultStore(context: Context) {
         const val KEY_EMULATORS = "emulators"
         const val KEY_BOXART = "boxart"
         const val KEY_LIBRARY_FOLDERS = "library_folders"
+        const val KEY_FOLDER_RULES = "folder_rules"
         const val KEY_ACCENT = "accent"
         const val KEY_PROGRESS = "progress"
     }
