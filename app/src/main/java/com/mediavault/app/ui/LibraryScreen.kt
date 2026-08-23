@@ -3,6 +3,7 @@ package com.mediavault.app.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,6 +16,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -34,16 +36,37 @@ fun LibraryScreen(
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Spacer(Modifier.height(contentPadding.calculateTopPadding()))
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = Mv.Gutter, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(Category.entries.toList()) { category ->
-                val count = state.countFor(category)
-                Chip(
-                    text = if (count > 0) "${category.label}  $count" else category.label,
-                    selected = state.category == category,
-                ) { state.category = category }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            LazyRow(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = Mv.Gutter, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(Category.entries.toList()) { category ->
+                    val count = state.countFor(category)
+                    Chip(
+                        text = if (count > 0) "${category.label}  $count" else category.label,
+                        selected = state.category == category,
+                    ) { state.category = category }
+                }
+            }
+            if (state.category == Category.GAMES) {
+                CircleGlyphButton(
+                    glyph = "+",
+                    size = 36.dp,
+                    background = Mv.Card,
+                    foreground = LocalAccent.current,
+                    fontSize = 18,
+                    modifier = Modifier.padding(end = 8.dp),
+                ) { state.showAddGame = true }
+                CircleGlyphButton(
+                    glyph = "◔",
+                    size = 36.dp,
+                    background = Mv.Card,
+                    foreground = LocalAccent.current,
+                    fontSize = 15,
+                    modifier = Modifier.padding(end = Mv.Gutter),
+                ) { state.showGameStats = true }
             }
         }
         val listPadding = PaddingValues(
@@ -65,7 +88,8 @@ fun LibraryScreen(
             }
         } else {
             when (state.category) {
-                Category.GAMES, Category.MOVIES, Category.TV -> PosterGrid(state, unfolded, listPadding)
+                Category.GAMES -> GamesSection(state, unfolded, listPadding)
+                Category.MOVIES, Category.TV -> PosterGrid(state, unfolded, listPadding)
                 Category.MUSIC -> MusicList(state, listPadding)
                 Category.FILES -> FilesList(state, listPadding, onRequestAllFiles)
             }

@@ -81,6 +81,45 @@ class VaultStore(context: Context) {
         prefs.edit().putString(KEY_FOLDER_RULES, obj.toString()).apply()
     }
 
+    /** Games starred by the user, by item id. */
+    fun loadFavorites(): Set<String> {
+        val raw = prefs.getString(KEY_FAVORITES, null) ?: return emptySet()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { arr.getString(it) }.toSet()
+        }.getOrDefault(emptySet())
+    }
+
+    fun saveFavorites(favorites: Set<String>) {
+        prefs.edit().putString(KEY_FAVORITES, JSONArray(favorites.toList()).toString()).apply()
+    }
+
+    /** Apps the user added by hand because the scanner did not call them games. */
+    fun loadManualGames(): Set<String> {
+        val raw = prefs.getString(KEY_MANUAL_GAMES, null) ?: return emptySet()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { arr.getString(it) }.toSet()
+        }.getOrDefault(emptySet())
+    }
+
+    fun saveManualGames(packages: Set<String>) {
+        prefs.edit().putString(KEY_MANUAL_GAMES, JSONArray(packages.toList()).toString()).apply()
+    }
+
+    /** Game sources the user switched off, by source id. */
+    fun loadDisabledSources(): Set<String> {
+        val raw = prefs.getString(KEY_DISABLED_SOURCES, null) ?: return emptySet()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { arr.getString(it) }.toSet()
+        }.getOrDefault(emptySet())
+    }
+
+    fun saveDisabledSources(sources: Set<String>) {
+        prefs.edit().putString(KEY_DISABLED_SOURCES, JSONArray(sources.toList()).toString()).apply()
+    }
+
     /** romId → absolute path of an imported or downloaded cover. */
     fun loadBoxArt(): Map<String, String> {
         val raw = prefs.getString(KEY_BOXART, null) ?: return emptyMap()
@@ -134,6 +173,9 @@ class VaultStore(context: Context) {
         const val KEY_BOXART = "boxart"
         const val KEY_LIBRARY_FOLDERS = "library_folders"
         const val KEY_FOLDER_RULES = "folder_rules"
+        const val KEY_FAVORITES = "favorites"
+        const val KEY_MANUAL_GAMES = "manual_games"
+        const val KEY_DISABLED_SOURCES = "disabled_sources"
         const val KEY_ACCENT = "accent"
         const val KEY_PROGRESS = "progress"
     }

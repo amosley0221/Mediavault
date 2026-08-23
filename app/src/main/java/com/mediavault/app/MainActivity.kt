@@ -29,9 +29,11 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         val current = state ?: return
-        val before = current.hasMediaAccess to current.hasAllFilesAccess
+        val before = Triple(current.hasMediaAccess, current.hasAllFilesAccess, current.hasPlaytimeAccess)
         current.refreshAccess()
-        if (before != (current.hasMediaAccess to current.hasAllFilesAccess)) {
+        current.refreshPlaytimeAccess()
+        val after = Triple(current.hasMediaAccess, current.hasAllFilesAccess, current.hasPlaytimeAccess)
+        if (before != after) {
             lifecycleScope.launch { current.rescan() }
         }
     }

@@ -15,11 +15,15 @@ import com.mediavault.app.data.Emulators
 import com.mediavault.app.data.GameSystem
 import com.mediavault.app.data.DocFile
 import com.mediavault.app.data.FolderRule
+import com.mediavault.app.data.GameSort
+import com.mediavault.app.data.InstalledApp
 import com.mediavault.app.data.InstalledApps
 import com.mediavault.app.data.LibraryFolder
 import com.mediavault.app.data.LocalScanner
 import com.mediavault.app.data.MediaAccess
 import com.mediavault.app.data.MediaItem
+import com.mediavault.app.data.PlayStat
+import com.mediavault.app.data.Playtime
 import com.mediavault.app.data.ScanResult
 import com.mediavault.app.data.Track
 import com.mediavault.app.data.VaultStore
@@ -87,6 +91,19 @@ class AppState(private val context: Context) {
     var emulatorPrompt by mutableStateOf<EmulatorPrompt?>(null)
     /** Set when the user asks to give a ROM its own cover. */
     var artTarget by mutableStateOf<MediaItem?>(null)
+    /** Which game the carousel is centred on. */
+    var gameSort by mutableStateOf(GameSort.MOST_PLAYED)
+    var showAddGame by mutableStateOf(false)
+    var showGameStats by mutableStateOf(false)
+    var favorites by mutableStateOf(emptySet<String>())
+        private set
+    var manualGames by mutableStateOf(emptySet<String>())
+        private set
+    var disabledSources by mutableStateOf(emptySet<String>())
+        private set
+    var hasPlaytimeAccess by mutableStateOf(false)
+        private set
+    private var playStats by mutableStateOf(emptyMap<String, PlayStat>())
     var fetchingArt by mutableStateOf(false)
     private var artOverrides by mutableStateOf(emptyMap<String, String>())
     private var progress by mutableStateOf(emptyMap<String, Int>())
@@ -105,6 +122,10 @@ class AppState(private val context: Context) {
         artOverrides = boxArt.overrides()
         libraryFolders.addAll(store.loadLibraryFolders())
         folderRules = store.loadFolderRules()
+        favorites = store.loadFavorites()
+        manualGames = store.loadManualGames()
+        disabledSources = store.loadDisabledSources()
+        hasPlaytimeAccess = Playtime.hasAccess(context)
     }
 
     // ---- the library -----------------------------------------------------
@@ -114,7 +135,74 @@ class AppState(private val context: Context) {
         get() = library.media
             .filter { it.category == Category.GAMES }
             .map { rom -> artOverrides[rom.id]?.let { rom.copy(artUri = it) } ?: rom }
-    val games: List<MediaItem> get() = roms + installedGames
+    /** Games from every source the user left switched on, in the chosen order. */
+    val games: List<MediaItem>
+        get() = (roms + installedGames)
+            .filter { it.sourceId !in disabledSources }
+            .sortedWith(gameOrder())
+
+    private fun gameOrder(): Comparator<MediaItem> = when (gameSort) {
+        GameSort.FAVORITES -> compareByDescending<MediaItem> { it.id in favorites }
+            .thenByDescending { it.playtimeMs }
+            .thenBy { it.title.lowercase() }
+        GameSort.MOST_PLAYED -> compareByDescending<MediaItem> { it.playtimeMs }
+            .thenBy { it.title.lowercase() }
+        GameSort.RECENT -> compareByDescending<MediaItem> { maxOf(it.lastPlayed, it.addedAt) }
+            .thenBy { it.title.lowercase() }
+        GameSort.ALPHABETICAL -> compareBy { it.title.lowercase() }
+    }
+
+    val favoriteGames: List<MediaItem> get() = games.filter { it.id in favorites }
+
+    /** Every source that contributed a game, with its count and playtime. */
+    val gameSources: List<Triple<String, Int, Long>>
+        get() = (roms + installedGames)
+            .groupBy { it.sourceId.ifBlank { it.source } }
+            .map { (source, items) -> Triple(source, items.size, items.sumOf { it.playtimeMs }) }
+            .sortedByDescending { it.third }
+
+    val totalPlaytimeMs: Long get() = (roms + installedGames).sumOf { it.playtimeMs }
+    val weekPlaytimeMs: Long
+        get() = installedGames.sumOf { item ->
+            item.packageName?.let { playStats[it]?.weekMs } ?: 0L
+        }
+
+    fun isFavorite(item: MediaItem): Boolean = item.id in favorites
+
+    fun toggleFavorite(item: MediaItem) {
+        favorites = if (item.id in favorites) favorites - item.id else favorites + item.id
+        store.saveFavorites(favorites)
+    }
+
+    fun toggleSource(source: String) {
+        disabledSources = if (source in disabledSources) disabledSources - source
+        else disabledSources + source
+        store.saveDisabledSources(disabledSources)
+    }
+
+    /** Apps the picker offers — everything installed, marked with what is already a game. */
+    fun installedApps(): List<InstalledApp> = InstalledApps.allApps(context)
+
+    fun isGameAdded(packageName: String): Boolean =
+        packageName in manualGames || installedGames.any { it.packageName == packageName }
+
+    suspend fun addManualGame(packageName: String, label: String) {
+        manualGames = manualGames + packageName
+        store.saveManualGames(manualGames)
+        showToast("Added $label")
+        rescan()
+    }
+
+    suspend fun removeManualGame(item: MediaItem) {
+        val packageName = item.packageName ?: return
+        manualGames = manualGames - packageName
+        store.saveManualGames(manualGames)
+        rescan()
+    }
+
+    fun refreshPlaytimeAccess() {
+        hasPlaytimeAccess = Playtime.hasAccess(context)
+    }
 
     val romSystems: List<GameSystem>
         get() = Emulators.systems.filter { system -> roms.any { it.systemId == system.id } }
@@ -346,7 +434,12 @@ class AppState(private val context: Context) {
             }
             store.saveFolders(folders.toList())
 
-            installedGames = withContext(Dispatchers.IO) { InstalledApps.games(context) }
+            hasPlaytimeAccess = Playtime.hasAccess(context)
+            val stats = withContext(Dispatchers.IO) { Playtime.collect(context) }
+            playStats = stats
+            installedGames = withContext(Dispatchers.IO) {
+                InstalledApps.games(context, manualGames, stats)
+            }
         } finally {
             scanning = false
             scannedOnce = true

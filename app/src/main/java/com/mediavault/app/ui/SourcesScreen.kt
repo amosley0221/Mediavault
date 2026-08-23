@@ -55,6 +55,7 @@ fun SourcesScreen(
     contentPadding: PaddingValues,
     onRequestAccess: () -> Unit,
     onRequestAllFiles: () -> Unit,
+    onRequestPlaytime: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val accent = LocalAccent.current
@@ -104,6 +105,17 @@ fun SourcesScreen(
                         "Optional — required for PDFs, spreadsheets and other documents",
                     granted = state.hasAllFilesAccess,
                     onGrant = onRequestAllFiles,
+                )
+
+                Spacer(Modifier.height(8.dp))
+                AccessRow(
+                    title = "Usage access",
+                    subtitle = if (state.hasPlaytimeAccess)
+                        "Granted — playtime is being tracked"
+                    else
+                        "Optional — needed to show how long each game has been played",
+                    granted = state.hasPlaytimeAccess,
+                    onGrant = onRequestPlaytime,
                 )
 
                 Spacer(Modifier.height(12.dp))
@@ -210,6 +222,56 @@ fun SourcesScreen(
                     fontSize = 11.sp,
                     lineHeight = 16.sp,
                 )
+            }
+        }
+
+        item {
+            Column(modifier = Modifier.padding(horizontal = Mv.Gutter)) {
+                SectionHeader(
+                    title = "Game sources",
+                    action = "Add a game",
+                    onAction = { state.showAddGame = true },
+                )
+                Spacer(Modifier.height(10.dp))
+                if (state.gameSources.isEmpty()) {
+                    Text(
+                        text = "No games found yet. Anything Android flags as a game is picked up " +
+                            "automatically; add the rest by hand.",
+                        color = Mv.Secondary,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                    )
+                } else {
+                    state.gameSources.forEach { (source, count, _) ->
+                        val enabled = source !in state.disabledSources
+                        CardSurface(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = source.ifBlank { "Unknown" },
+                                        color = if (enabled) Mv.Text else Mv.Secondary,
+                                        fontSize = 13.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                    Text(
+                                        text = "$count game${if (count == 1) "" else "s"}",
+                                        color = Mv.Secondary,
+                                        fontSize = 11.sp,
+                                    )
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                SmallPillButton(
+                                    text = if (enabled) "✓ On" else "Off",
+                                    active = enabled,
+                                ) { state.toggleSource(source) }
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
             }
         }
 

@@ -72,6 +72,11 @@ fun MediaVaultApp(state: AppState) {
         else permissionLauncher.launch(MediaAccess.mediaPermissions)
     }
 
+    val onRequestPlaytime: () -> Unit = {
+        runCatching { context.startActivity(com.mediavault.app.data.Playtime.settingsIntent()) }
+            .onFailure { state.showToast("Couldn't open usage access settings") }
+    }
+
     val onRequestAllFiles: () -> Unit = {
         val intent = MediaAccess.allFilesSettingsIntent(context)
         if (intent != null) {
@@ -94,9 +99,14 @@ fun MediaVaultApp(state: AppState) {
             val detail = state.detail
             val player = state.player
 
-            BackHandler(enabled = player != null || detail != null || state.tab != Tab.HOME) {
+            BackHandler(
+                enabled = player != null || detail != null || state.showAddGame ||
+                    state.showGameStats || state.tab != Tab.HOME
+            ) {
                 when {
                     player != null -> state.closePlayer(player.startPercent)
+                    state.showAddGame -> state.showAddGame = false
+                    state.showGameStats -> state.showGameStats = false
                     detail != null -> state.closeDetail()
                     state.tab != Tab.HOME -> state.tab = Tab.HOME
                 }
@@ -111,6 +121,10 @@ fun MediaVaultApp(state: AppState) {
 
             if (player != null) {
                 PlayerScreen(state, player)
+            } else if (state.showAddGame) {
+                AddGameScreen(state, contentPadding)
+            } else if (state.showGameStats) {
+                GameStatsScreen(state, unfolded, contentPadding, onRequestPlaytime)
             } else {
                 Crossfade(
                     targetState = detail?.id ?: state.tab.name,
@@ -128,6 +142,7 @@ fun MediaVaultApp(state: AppState) {
                             Tab.LIVE -> LiveScreen(state, unfolded, contentPadding)
                             Tab.SOURCES -> SourcesScreen(
                                 state, unfolded, contentPadding, onRequestAccess, onRequestAllFiles,
+                                onRequestPlaytime,
                             )
                         }
                     }

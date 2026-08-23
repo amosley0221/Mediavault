@@ -51,6 +51,11 @@ data class MediaItem(
     val systemId: String? = null,
     /** The untouched filename — box-art lookups match on it, not the cleaned title. */
     val fileName: String? = null,
+    /** Time on screen, for installed games with usage access granted. */
+    val playtimeMs: Long = 0,
+    val lastPlayed: Long = 0,
+    /** Where this game came from: "Play Store", "Sideloaded", a console name, "Added by hand". */
+    val sourceId: String = "",
     /** Uri whose thumbnail represents this item (an episode's, for a show). */
     val artUri: String? = uri,
 )
@@ -121,6 +126,18 @@ enum class FolderRule { NONE, MOVIES, TV, MUSIC;
  * on the phone, including WhatsApp clips".
  */
 data class LibraryFolder(val uri: String, val path: String, val category: Category)
+
+/** How the games grid is ordered. */
+enum class GameSort { FAVORITES, MOST_PLAYED, RECENT, ALPHABETICAL;
+
+    val label: String
+        get() = when (this) {
+            FAVORITES -> "★"
+            MOST_PLAYED -> "Most played"
+            RECENT -> "Recent"
+            ALPHABETICAL -> "A–Z"
+        }
+}
 
 data class WatchedFolder(val uri: String, val path: String, val meta: String)
 
