@@ -4,54 +4,37 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.webkit.MimeTypeMap
+import androidx.core.content.FileProvider
+import java.io.File
 import java.util.Locale
 
-/** Deep links out to the apps that own the content MediaVault only indexes. */
+/** Hands files to the apps that own them, and deep-links out to streaming services. */
 object Launch {
 
-    fun web(context: Context, url: String): Boolean = view(context, Uri.parse(url), null)
-
-    fun search(context: Context, service: String, title: String): Boolean {
-        val encoded = Uri.encode(title)
-        val url = when (service.lowercase(Locale.US)) {
-            "netflix" -> "https://www.netflix.com/search?q=$encoded"
-            "hulu" -> "https://www.hulu.com/search?q=$encoded"
-            "apple tv+", "apple tv" -> "https://tv.apple.com/search?term=$encoded"
-            "youtube" -> "https://www.youtube.com/results?search_query=$encoded"
-            "youtube tv" -> "https://tv.youtube.com/live"
-            "plex" -> "https://app.plex.tv/desktop"
-            "moonlight" -> "https://moonlight-stream.org"
-            else -> "https://www.google.com/search?q=$encoded"
-        }
-        return web(context, url)
-    }
+    fun web(context: Context, url: String): Boolean =
+        start(context, Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 
     fun twitch(context: Context, channel: String): Boolean {
         val app = Intent(Intent.ACTION_VIEW, Uri.parse("twitch://stream/$channel"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         return start(context, app) || web(context, "https://www.twitch.tv/$channel")
     }
 
     fun youtube(context: Context, query: String): Boolean =
         web(context, "https://www.youtube.com/results?search_query=${Uri.encode(query)}")
 
-    fun youtubeTv(context: Context): Boolean = web(context, "https://tv.youtube.com/live")
-
-    /** Hands a scanned document to whichever app owns that file type. */
+    /** Opens a document in whichever app claims its type. */
     fun openDocument(context: Context, uri: String, mime: String?): Boolean {
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(Uri.parse(uri), mime ?: "*/*")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        return start(context, intent)
+        val shareable = shareableUri(context, uri) ?: return false
+        val type = mime ?: guessMime(uri) ?: "*/*"
+        return viewFile(context, shareable, type)
     }
 
-    /** Escape hatch from the in-app player. */
+    /** Escape hatch from the built-in player. */
     fun openVideoExternally(context: Context, uri: String): Boolean {
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(Uri.parse(uri), "video/*")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        return start(context, intent)
+        val shareable = shareableUri(context, uri) ?: return false
+        return viewFile(context, shareable, guessMime(uri) ?: "video/*")
     }
 
     fun launchApp(context: Context, packageName: String): Boolean {
@@ -60,12 +43,36 @@ object Launch {
         return start(context, intent)
     }
 
-    private fun view(context: Context, uri: Uri, mime: String?): Boolean {
-        val intent = Intent(Intent.ACTION_VIEW, uri).apply {
-            if (mime != null) type = mime
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    private fun viewFile(context: Context, uri: Uri, mime: String): Boolean {
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, mime)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        return start(context, intent)
+        if (start(context, intent)) return true
+        // Some viewers only register for the generic type.
+        val fallback = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "*/*")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return start(context, fallback)
+    }
+
+    /**
+     * A `file://` uri cannot be handed to another app, so anything found by walking storage
+     * is re-issued through this app's FileProvider.
+     */
+    private fun shareableUri(context: Context, uri: String): Uri? {
+        val parsed = runCatching { Uri.parse(uri) }.getOrNull() ?: return null
+        if (parsed.scheme != "file") return parsed
+        val path = parsed.path ?: return null
+        return runCatching {
+            FileProvider.getUriForFile(context, "${context.packageName}.files", File(path))
+        }.getOrNull()
+    }
+
+    private fun guessMime(uri: String): String? {
+        val extension = uri.substringAfterLast('.', "").lowercase(Locale.US).ifBlank { return null }
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
     }
 
     private fun start(context: Context, intent: Intent): Boolean = try {

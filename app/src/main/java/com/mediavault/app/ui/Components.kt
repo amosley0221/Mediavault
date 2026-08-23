@@ -18,19 +18,84 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.Image
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mediavault.app.data.Thumbnails
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+/**
+ * Loads the real artwork for a file — a video frame, an album cover — off the main thread.
+ * Null while it loads, and for anything the system has no thumbnail for.
+ */
+@Composable
+fun rememberThumbnail(uri: String?, width: Int = 320, height: Int = 480): ImageBitmap? {
+    val context = LocalContext.current
+    var bitmap by remember(uri) { mutableStateOf(Thumbnails.cached(uri)?.asImageBitmap()) }
+    LaunchedEffect(uri) {
+        if (uri != null && bitmap == null && !Thumbnails.isKnownMiss(uri)) {
+            bitmap = withContext(Dispatchers.IO) {
+                Thumbnails.load(context, uri, width, height)?.asImageBitmap()
+            }
+        }
+    }
+    return bitmap
+}
+
+/** Artwork if we have it, the gradient-and-initials placeholder if we don't. */
+@Composable
+fun ArtworkBox(
+    letter: String,
+    gradient: Pair<Long, Long>,
+    artUri: String?,
+    modifier: Modifier = Modifier,
+    letterSize: Int = 30,
+    thumbWidth: Int = 320,
+    thumbHeight: Int = 480,
+    overlay: @Composable BoxScope.() -> Unit = {},
+) {
+    val art = rememberThumbnail(artUri, thumbWidth, thumbHeight)
+    Box(modifier = modifier.background(gradientBrush(gradient))) {
+        if (art != null) {
+            Image(
+                bitmap = art,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize(),
+            )
+        } else {
+            Text(
+                text = letter,
+                color = Color.White.copy(alpha = 0.92f),
+                fontSize = letterSize.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.Center),
+            )
+        }
+        overlay()
+    }
+}
 
 fun gradientBrush(gradient: Pair<Long, Long>): Brush = Brush.linearGradient(
     listOf(Color(gradient.first or 0xFF000000L), Color(gradient.second or 0xFF000000L))
@@ -296,23 +361,19 @@ fun PosterCard(
     modifier: Modifier = Modifier,
     tag: String? = null,
     progress: Int = 0,
+    artUri: String? = null,
     onClick: () -> Unit,
 ) {
     Column(modifier = modifier.clickable { onClick() }) {
-        Box(
+        ArtworkBox(
+            letter = letter,
+            gradient = gradient,
+            artUri = artUri,
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(aspect)
-                .clip(RoundedCornerShape(Mv.CoverRadius))
-                .background(gradientBrush(gradient)),
+                .clip(RoundedCornerShape(Mv.CoverRadius)),
         ) {
-            Text(
-                text = letter,
-                color = Color.White.copy(alpha = 0.92f),
-                fontSize = 30.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.Center),
-            )
             if (tag != null) {
                 TagPill(
                     text = tag,
@@ -355,15 +416,20 @@ fun WideCard(
     modifier: Modifier = Modifier,
     live: Boolean = false,
     liveLabel: String? = null,
+    artUri: String? = null,
     onClick: () -> Unit,
 ) {
     Column(modifier = modifier.width(width).clickable { onClick() }) {
-        Box(
+        ArtworkBox(
+            letter = letter,
+            gradient = gradient,
+            artUri = artUri,
+            thumbWidth = 480,
+            thumbHeight = 270,
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(Mv.CoverRadius))
-                .background(gradientBrush(gradient)),
+                .clip(RoundedCornerShape(Mv.CoverRadius)),
         ) {
             Box(
                 modifier = Modifier

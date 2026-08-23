@@ -1,6 +1,8 @@
 package com.mediavault.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -26,6 +28,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,13 +39,49 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mediavault.app.data.MediaAccess
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private val TAB_BAR_HEIGHT = 62.dp
 private val MINI_PLAYER_HEIGHT = 62.dp
 
 @Composable
 fun MediaVaultApp(state: AppState) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { granted ->
+        state.refreshAccess()
+        if (granted.values.any { it }) {
+            scope.launch { state.rescan() }
+        } else {
+            state.showToast("Media access denied — turn it on in Settings to see your library")
+        }
+    }
+
+    val onRequestAccess: () -> Unit = {
+        if (state.hasMediaAccess) scope.launch { state.rescan() }
+        else permissionLauncher.launch(MediaAccess.mediaPermissions)
+    }
+
+    val onRequestAllFiles: () -> Unit = {
+        val intent = MediaAccess.allFilesSettingsIntent(context)
+        if (intent != null) {
+            runCatching { context.startActivity(intent) }
+                .onFailure { runCatching { context.startActivity(MediaAccess.appSettingsIntent(context)) } }
+            state.showToast("Allow all files access, then come back")
+        } else {
+            onRequestAccess()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (!state.hasMediaAccess) permissionLauncher.launch(MediaAccess.mediaPermissions)
+    }
+
     ProvideAccent(state.accent) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize().background(Mv.Page)) {
             val unfolded = maxWidth >= 600.dp
@@ -76,10 +116,14 @@ fun MediaVaultApp(state: AppState) {
                         DetailScreen(state, detail, unfolded, contentPadding)
                     } else {
                         when (state.tab) {
-                            Tab.HOME -> HomeScreen(state, unfolded, contentPadding)
-                            Tab.LIBRARY -> LibraryScreen(state, unfolded, contentPadding)
+                            Tab.HOME -> HomeScreen(state, unfolded, contentPadding, onRequestAccess)
+                            Tab.LIBRARY -> LibraryScreen(
+                                state, unfolded, contentPadding, onRequestAccess, onRequestAllFiles,
+                            )
                             Tab.LIVE -> LiveScreen(state, unfolded, contentPadding)
-                            Tab.SOURCES -> SourcesScreen(state, unfolded, contentPadding)
+                            Tab.SOURCES -> SourcesScreen(
+                                state, unfolded, contentPadding, onRequestAccess, onRequestAllFiles,
+                            )
                         }
                     }
                 }
@@ -101,8 +145,12 @@ fun MediaVaultApp(state: AppState) {
                     state.nowPlaying?.let { track ->
                         MiniPlayer(
                             title = track.title,
-                            subtitle = track.sub,
+                            subtitle = listOf(track.artist, track.album)
+                                .filter { it.isNotBlank() }
+                                .joinToString(" · ")
+                                .ifBlank { "On this phone" },
                             gradient = track.gradient,
+                            artUri = track.artUri,
                             playing = state.trackPlaying,
                             onToggle = { state.toggleTrack() },
                             onClose = { state.stopTrack() },
@@ -166,6 +214,7 @@ private fun MiniPlayer(
     title: String,
     subtitle: String,
     gradient: Pair<Long, Long>,
+    artUri: String?,
     playing: Boolean,
     onToggle: () -> Unit,
     onClose: () -> Unit,
@@ -180,15 +229,15 @@ private fun MiniPlayer(
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(gradientBrush(gradient)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(text = "♪", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-        }
+        ArtworkBox(
+            letter = "♪",
+            gradient = gradient,
+            artUri = artUri,
+            letterSize = 15,
+            thumbWidth = 128,
+            thumbHeight = 128,
+            modifier = Modifier.size(38.dp).clip(RoundedCornerShape(9.dp)),
+        )
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(

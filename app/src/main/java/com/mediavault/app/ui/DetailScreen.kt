@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -18,7 +17,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -34,8 +32,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediavault.app.data.Category
-import com.mediavault.app.data.DemoData
-import com.mediavault.app.data.Episode
+import com.mediavault.app.data.DeviceMedia
+import com.mediavault.app.data.EpisodeFile
 import com.mediavault.app.data.MediaItem
 import com.mediavault.app.util.Launch
 
@@ -47,25 +45,30 @@ fun DetailScreen(
     contentPadding: PaddingValues,
 ) {
     val context = LocalContext.current
-    val meta = DemoData.metaFor(item)
-    val isShow = item.category == Category.TV
     val percent = state.progressOf(item)
-    val seasonCount = meta.seasons.coerceAtLeast(1)
-    val episodes = episodesFor(meta, state.season, seasonCount)
+    val isShow = item.category == Category.TV && item.episodes.isNotEmpty()
+    val seasons = item.episodes.map { it.season }.distinct().sorted()
+    val activeSeason = seasons.getOrNull(state.season) ?: seasons.firstOrNull() ?: 1
+    val episodes = item.episodes.filter { it.season == activeSeason }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(180.dp)
-                .background(gradientBrush(item.gradient)),
+                .height(180.dp),
         ) {
+            ArtworkBox(
+                letter = item.letter,
+                gradient = item.gradient,
+                artUri = item.artUri,
+                thumbWidth = 720,
+                thumbHeight = 400,
+                modifier = Modifier.fillMaxWidth().height(180.dp),
+            )
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .background(
-                        Brush.verticalGradient(listOf(Color(0x00000000), Mv.Page))
-                    ),
+                    .background(Brush.verticalGradient(listOf(Color(0x33000000), Mv.Page))),
             )
             CircleGlyphButton(
                 glyph = "‹",
@@ -91,126 +94,66 @@ fun DetailScreen(
                         TagPill(it)
                         Spacer(Modifier.width(8.dp))
                     }
-                    Text(
-                        text = buildString {
-                            append(meta.year.takeIf { it > 0 }?.toString() ?: "—")
-                            append(" · ${meta.genre} · ${meta.rating}")
-                            if (isShow) append(" · $seasonCount season${if (seasonCount > 1) "s" else ""}")
-                        },
-                        color = Mv.Secondary,
-                        fontSize = 11.5.sp,
-                    )
+                    Text(text = metaLine(item), color = Mv.Secondary, fontSize = 11.5.sp)
                 }
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = meta.synopsis,
-                    color = Mv.Muted,
-                    fontSize = 13.sp,
-                    lineHeight = 20.sp,
-                )
+
                 Spacer(Modifier.height(16.dp))
                 AccentButton(
-                    text = playLabel(item, percent),
+                    text = if (percent in 1..99) "▶ Resume · $percent%" else "▶ Play",
                     modifier = Modifier.fillMaxWidth(),
-                ) { play(state, context, item, percent) }
+                ) { state.play(item) }
 
-                if (meta.cast.isNotEmpty()) {
-                    Spacer(Modifier.height(22.dp))
-                    SectionHeader(title = "Cast")
-                    Spacer(Modifier.height(10.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        items(meta.cast) { name ->
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.width(66.dp),
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(52.dp)
-                                        .clip(CircleShape)
-                                        .background(gradientBrush(com.mediavault.app.data.LocalScanner.gradientFor(name))),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text(
-                                        text = name.split(' ').mapNotNull { it.firstOrNull() }.take(2)
-                                            .joinToString("").uppercase(),
-                                        color = Color.White,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                }
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    text = name,
-                                    color = Mv.Secondary,
-                                    fontSize = 10.sp,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(99.dp))
+                        .background(Color(0xFFEFEFF2))
+                        .clickable {
+                            val uri = item.episodes.firstOrNull()?.uri ?: item.uri
+                            if (uri == null || !Launch.openVideoExternally(context, uri)) {
+                                state.showToast("No other app can open this file")
                             }
                         }
-                    }
-                }
-
-                Spacer(Modifier.height(18.dp))
-                Row {
-                    Text(text = "Matched from TMDB · ", color = Mv.Secondary, fontSize = 11.sp)
+                        .padding(vertical = 13.dp),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
                     Text(
-                        text = "Fix match",
-                        color = LocalAccent.current,
-                        fontSize = 11.sp,
+                        text = "Open in another player ↗",
+                        color = Mv.Muted,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.clickable {
-                            state.showToast("🔎 Manual match for “${item.title}” — connect a metadata source")
-                        },
                     )
                 }
+
+                Spacer(Modifier.height(22.dp))
+                SectionHeader(title = "File")
+                Spacer(Modifier.height(10.dp))
+                FileFacts(item)
             }
         }
 
         val side: @Composable (Modifier) -> Unit = { modifier ->
             Column(modifier = modifier.padding(horizontal = Mv.Gutter)) {
                 if (isShow) {
-                    if (seasonCount > 1) {
+                    SectionHeader(title = "Episodes")
+                    Spacer(Modifier.height(10.dp))
+                    if (seasons.size > 1) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items((0 until seasonCount).toList()) { index ->
+                            items(seasons) { season ->
                                 Chip(
-                                    text = "Season ${index + 1}",
-                                    selected = state.season == index,
-                                ) { state.season = index }
+                                    text = "Season $season",
+                                    selected = season == activeSeason,
+                                ) { state.season = seasons.indexOf(season) }
                             }
                         }
                         Spacer(Modifier.height(12.dp))
                     }
                     episodes.forEach { episode ->
                         EpisodeRow(episode) {
-                            state.openPlayer(
-                                PlaybackTarget(
-                                    title = "${item.title} · S${state.season + 1} E${episode.number}",
-                                    sourceLabel = sourceLabel(item),
-                                    uri = item.uri,
-                                    length = episode.length,
-                                    startPercent = episode.progress,
-                                    itemId = item.id,
-                                )
-                            )
+                            state.play(item, item.episodes.indexOf(episode))
                         }
                         Spacer(Modifier.height(8.dp))
-                    }
-                } else if (meta.collection.isNotEmpty()) {
-                    SectionHeader(title = "In collection")
-                    Spacer(Modifier.height(10.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(meta.collection) { title ->
-                            PosterCard(
-                                title = title,
-                                subtitle = "TMDB collection",
-                                letter = title.take(1),
-                                gradient = com.mediavault.app.data.LocalScanner.gradientFor(title),
-                                aspect = 2f / 3f,
-                                modifier = Modifier.width(104.dp),
-                            ) { state.showToast("Not in your library yet") }
-                        }
                     }
                 }
             }
@@ -233,89 +176,93 @@ fun DetailScreen(
     }
 }
 
-private fun episodesFor(meta: com.mediavault.app.data.MediaMeta, season: Int, seasonCount: Int): List<Episode> {
-    val isLastSeason = season == seasonCount - 1
-    if (isLastSeason && meta.episodes.isNotEmpty()) return meta.episodes
-    return (1..8).map { Episode(it, "Episode $it", "45 min", if (isLastSeason) 0 else 100) }
-}
-
-private fun playLabel(item: MediaItem, percent: Int): String = when {
-    !item.playsInApp -> "Open in ${item.source} ↗"
-    percent in 1..99 -> "▶ Resume · ${item.at} of ${item.length}"
-    else -> "▶ Play"
-}
-
-private fun sourceLabel(item: MediaItem): String = when {
-    item.uri != null -> "Playing from a watched folder"
-    item.source.equals("plex", true) -> "Playing from Plex"
-    else -> "Playing from ${item.source}"
-}
-
-private fun play(state: AppState, context: android.content.Context, item: MediaItem, percent: Int) {
-    if (!item.playsInApp) {
-        state.showToast("↗ Opening “${item.title}” in ${item.source}…")
-        Launch.search(context, item.source, item.title)
-        return
+private fun metaLine(item: MediaItem): String {
+    val pieces = buildList {
+        if (item.year.isNotBlank()) add(item.year)
+        if (item.episodes.isNotEmpty()) {
+            add("${item.episodes.size} episodes")
+            add("${item.episodes.map { it.season }.distinct().size} seasons")
+        }
+        DeviceMedia.formatDuration(item.durationMs).takeIf { it.isNotBlank() }?.let { add(it) }
+        if (item.folder.isNotBlank()) add(item.folder)
     }
-    state.openPlayer(
-        PlaybackTarget(
-            title = item.title,
-            sourceLabel = sourceLabel(item),
-            uri = item.uri,
-            length = item.length,
-            startPercent = percent,
-            itemId = item.id,
-        )
-    )
+    return pieces.joinToString(" · ").ifBlank { item.source }
 }
 
 @Composable
-private fun EpisodeRow(episode: Episode, onClick: () -> Unit) {
-    val accent = LocalAccent.current
-    CardSurface(modifier = Modifier.fillMaxWidth(), onClick = onClick) {
-        Column {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(34.dp)
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(Color(0xFFEFEFF2)),
-                    contentAlignment = Alignment.Center,
+private fun FileFacts(item: MediaItem) {
+    val facts = buildList {
+        if (item.folder.isNotBlank()) add("Folder" to item.folder)
+        DeviceMedia.formatDuration(item.durationMs).takeIf { it.isNotBlank() }?.let { add("Length" to it) }
+        DeviceMedia.formatSize(item.sizeBytes)?.let { add("Size" to it) }
+        item.mime?.let { add("Type" to it) }
+        DeviceMedia.formatDate(item.addedAt)?.let { add("Modified" to it) }
+        add("Source" to item.source)
+    }
+    CardSurface(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(vertical = 4.dp)) {
+            facts.forEach { (label, value) ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Text(text = label, color = Mv.Secondary, fontSize = 11.5.sp, modifier = Modifier.width(78.dp))
                     Text(
-                        text = episode.number.toString(),
-                        color = Mv.Muted,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = episode.title,
+                        text = value,
                         color = Mv.Text,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Text(text = episode.length, color = Mv.Secondary, fontSize = 11.sp)
-                }
-                if (episode.progress >= 100) {
-                    Text(text = "✓", color = Mv.Watched, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            if (episode.progress in 1..99) {
-                ProgressBar(
-                    percent = episode.progress,
-                    color = accent,
-                    track = Color(0x14000000),
-                    modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 10.dp),
+        }
+    }
+}
+
+@Composable
+private fun EpisodeRow(episode: EpisodeFile, onClick: () -> Unit) {
+    CardSurface(modifier = Modifier.fillMaxWidth(), onClick = onClick) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(Color(0xFFEFEFF2)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = episode.number.toString(),
+                    color = Mv.Muted,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
                 )
             }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = episode.title,
+                    color = Mv.Text,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = listOfNotNull(
+                        "S${episode.season} E${episode.number}",
+                        DeviceMedia.formatDuration(episode.durationMs).ifBlank { null },
+                        DeviceMedia.formatSize(episode.sizeBytes),
+                    ).joinToString(" · "),
+                    color = Mv.Secondary,
+                    fontSize = 11.sp,
+                )
+            }
+            PlayGlyph(size = 12.dp, color = Mv.Secondary)
         }
     }
 }

@@ -55,22 +55,20 @@ fun PlayerScreen(state: AppState, target: PlaybackTarget) {
     var durationMs by remember(target) { mutableStateOf(0L) }
 
     val exo = remember(target.uri) {
-        target.uri?.let { uri ->
-            runCatching {
-                ExoPlayer.Builder(context).build().apply {
-                    setMediaItem(ExoMediaItem.fromUri(Uri.parse(uri)))
-                    prepare()
-                    playWhenReady = true
-                }
-            }.getOrNull()
-        }
+        runCatching {
+            ExoPlayer.Builder(context).build().apply {
+                setMediaItem(ExoMediaItem.fromUri(Uri.parse(target.uri)))
+                prepare()
+                playWhenReady = true
+            }
+        }.getOrNull()
     }
 
     DisposableEffect(exo) {
         onDispose { exo?.release() }
     }
 
-    // Tick the scrub bar: real position when a file is playing, a slow crawl otherwise.
+    // Tick the scrub bar off the player's real position.
     LaunchedEffect(target, playing) {
         while (true) {
             delay(1000)
@@ -81,8 +79,6 @@ fun PlayerScreen(state: AppState, target: PlaybackTarget) {
                     durationMs = duration
                     percent = ((exo.currentPosition * 100) / duration).toInt().coerceIn(0, 100)
                 }
-            } else if (percent < 100) {
-                percent += 1
             }
         }
     }
@@ -98,19 +94,12 @@ fun PlayerScreen(state: AppState, target: PlaybackTarget) {
                         modifier = Modifier.fillMaxSize(),
                     )
                 } else {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .size(74.dp)
-                            .clip(CircleShape)
-                            .background(Color(0x1FFFFFFF))
-                            .clickable {
-                                playing = !playing
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        PlayGlyph(size = 24.dp, color = Color.White)
-                    }
+                    Text(
+                        text = "This file could not be opened for playback.\nTry \"Open in another player\" below.",
+                        color = Color.White.copy(alpha = 0.75f),
+                        fontSize = 13.sp,
+                        modifier = Modifier.align(Alignment.Center).padding(32.dp),
+                    )
                 }
 
                 Text(
@@ -165,13 +154,13 @@ fun PlayerScreen(state: AppState, target: PlaybackTarget) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        text = timecode(percent, durationMs, target.length),
+                        text = timecode(percent, maxOf(durationMs, target.durationMs)),
                         color = Color(0xFF86868B),
                         fontSize = 11.sp,
                         fontFamily = Mv.Mono,
                     )
                     Text(
-                        text = totalLabel(durationMs, target.length),
+                        text = totalLabel(maxOf(durationMs, target.durationMs)),
                         color = Color(0xFF86868B),
                         fontSize = 11.sp,
                         fontFamily = Mv.Mono,
@@ -197,19 +186,17 @@ fun PlayerScreen(state: AppState, target: PlaybackTarget) {
                             .clip(RoundedCornerShape(99.dp))
                             .background(Color(0x1FFFFFFF))
                             .clickable {
-                                val uri = target.uri
-                                val opened = uri != null && Launch.openVideoExternally(context, uri)
-                                if (!opened) {
-                                    Launch.search(context, if (target.sourceLabel.contains("Plex")) "Plex" else "VLC", target.title)
+                                if (Launch.openVideoExternally(context, target.uri)) {
+                                    state.closePlayer(percent)
+                                } else {
+                                    state.showToast("No other app on this phone can play this file")
                                 }
-                                state.showToast("↗ Opening “${target.title}” externally…")
-                                state.closePlayer(percent)
                             }
                             .padding(vertical = 13.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            text = if (target.sourceLabel.contains("Plex")) "Open in Plex ↗" else "Open in VLC ↗",
+                            text = "Open in another player ↗",
                             color = Color.White,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -232,30 +219,18 @@ fun PlayerScreen(state: AppState, target: PlaybackTarget) {
     }
 }
 
-private fun timecode(percent: Int, durationMs: Long, fallbackLength: String): String {
-    if (durationMs > 0) return format((durationMs * percent / 100) / 1000)
-    val totalSeconds = parseLength(fallbackLength) ?: return "0:00"
-    return format(totalSeconds * percent / 100)
+private fun timecode(percent: Int, durationMs: Long): String {
+    if (durationMs <= 0) return "0:00"
+    return format((durationMs * percent / 100) / 1000)
 }
 
-private fun totalLabel(durationMs: Long, fallbackLength: String): String {
-    if (durationMs > 0) return format(durationMs / 1000)
-    return fallbackLength.ifBlank { "--:--" }
-}
-
-private fun parseLength(length: String): Long? {
-    val parts = length.split(":").mapNotNull { it.trim().toLongOrNull() }
-    return when (parts.size) {
-        2 -> parts[0] * 3600 + parts[1] * 60
-        3 -> parts[0] * 3600 + parts[1] * 60 + parts[2]
-        else -> null
-    }
-}
+private fun totalLabel(durationMs: Long): String =
+    if (durationMs > 0) format(durationMs / 1000) else "--:--"
 
 private fun format(totalSeconds: Long): String {
     val hours = totalSeconds / 3600
     val minutes = (totalSeconds % 3600) / 60
     val seconds = totalSeconds % 60
-    return if (hours > 0) String.format("%d:%02d:%02d", hours, minutes, seconds)
-    else String.format("%d:%02d", minutes, seconds)
+    return if (hours > 0) String.format(java.util.Locale.US, "%d:%02d:%02d", hours, minutes, seconds)
+    else String.format(java.util.Locale.US, "%d:%02d", minutes, seconds)
 }

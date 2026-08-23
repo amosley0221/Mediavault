@@ -25,18 +25,26 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mediavault.app.data.DemoData
+import com.mediavault.app.data.Category
+import com.mediavault.app.data.MediaAccess
 import com.mediavault.app.data.VaultUser
 import com.mediavault.app.data.WatchedFolder
 import kotlinx.coroutines.launch
 
 @Composable
-fun SourcesScreen(state: AppState, unfolded: Boolean, contentPadding: PaddingValues) {
+fun SourcesScreen(
+    state: AppState,
+    unfolded: Boolean,
+    contentPadding: PaddingValues,
+    onRequestAccess: () -> Unit,
+    onRequestAllFiles: () -> Unit,
+) {
     val scope = rememberCoroutineScope()
     val accent = LocalAccent.current
 
@@ -51,22 +59,50 @@ fun SourcesScreen(state: AppState, unfolded: Boolean, contentPadding: PaddingVal
         item {
             Column(modifier = Modifier.padding(horizontal = Mv.Gutter)) {
                 SectionHeader(
-                    title = "Watched folders",
+                    title = "This phone",
                     action = if (state.scanning) "Scanning…" else "Rescan",
                     onAction = { scope.launch { state.rescan() } },
                 )
+                Spacer(Modifier.height(10.dp))
+
+                AccessRow(
+                    title = "Media access",
+                    subtitle = if (state.hasMediaAccess)
+                        "Videos, music and photos are readable"
+                    else
+                        "Needed before anything shows up in the library",
+                    granted = state.hasMediaAccess,
+                    onGrant = onRequestAccess,
+                )
+                Spacer(Modifier.height(8.dp))
+                AccessRow(
+                    title = "All files access",
+                    subtitle = if (state.hasAllFilesAccess)
+                        "Documents and downloads are readable"
+                    else
+                        "Optional — required for PDFs, spreadsheets and other documents",
+                    granted = state.hasAllFilesAccess,
+                    onGrant = onRequestAllFiles,
+                )
+
+                Spacer(Modifier.height(12.dp))
+                LibraryCounts(state)
+            }
+        }
+
+        item {
+            Column(modifier = Modifier.padding(horizontal = Mv.Gutter)) {
+                SectionHeader(title = "Watched folders")
                 Spacer(Modifier.height(10.dp))
                 state.folders.forEach { folder ->
                     FolderRow(folder) { state.removeFolder(folder) }
                     Spacer(Modifier.height(8.dp))
                 }
-                DashedAddRow(text = "+ Add a folder to watch") {
-                    picker.launch(null)
-                }
+                DashedAddRow(text = "+ Add a folder to watch") { picker.launch(null) }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "Folders you add are scanned on the device — filenames become movies, " +
-                        "episodes, tracks and file rows. Nothing is uploaded.",
+                    text = "Use this for media the system does not index — an SD card, a USB drive, " +
+                        "a downloads folder. Everything is read on the device; nothing is uploaded.",
                     color = Mv.Secondary,
                     fontSize = 11.sp,
                     lineHeight = 16.sp,
@@ -102,59 +138,6 @@ fun SourcesScreen(state: AppState, unfolded: Boolean, contentPadding: PaddingVal
 
         item {
             Column(modifier = Modifier.padding(horizontal = Mv.Gutter)) {
-                SectionHeader(title = "Connected services")
-                Spacer(Modifier.height(10.dp))
-                DemoData.services.forEach { service ->
-                    val connected = service.name in state.connected
-                    CardSurface(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(gradientBrush(service.gradient)),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    text = service.abbr,
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                            }
-                            Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = service.name,
-                                    color = Mv.Text,
-                                    fontSize = 13.5.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                                Text(
-                                    text = service.description,
-                                    color = Mv.Secondary,
-                                    fontSize = 11.sp,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                            Spacer(Modifier.width(10.dp))
-                            SmallPillButton(
-                                text = if (connected) "✓ Connected" else "Connect",
-                                active = connected,
-                            ) { state.toggleService(service.name) }
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-            }
-        }
-
-        item {
-            Column(modifier = Modifier.padding(horizontal = Mv.Gutter)) {
                 SectionHeader(title = "Accent")
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -173,13 +156,79 @@ fun SourcesScreen(state: AppState, unfolded: Boolean, contentPadding: PaddingVal
                         )
                     }
                 }
-                Spacer(Modifier.height(18.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryCounts(state: AppState) {
+    val counts = listOf(
+        "Videos" to state.countFor(Category.MOVIES),
+        "Series" to state.countFor(Category.TV),
+        "Tracks" to state.countFor(Category.MUSIC),
+        "Files" to state.countFor(Category.FILES),
+        "Games" to state.countFor(Category.GAMES),
+    )
+    CardSurface(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            counts.forEach { (label, count) ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = count.toString(),
+                        color = Mv.Text,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(text = label, color = Mv.Secondary, fontSize = 10.5.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccessRow(
+    title: String,
+    subtitle: String,
+    granted: Boolean,
+    onGrant: () -> Unit,
+) {
+    CardSurface(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (granted) Mv.Watched.copy(alpha = 0.14f) else Color(0xFFFDEAEA)),
+                contentAlignment = Alignment.Center,
+            ) {
                 Text(
-                    text = "MediaVault · design build",
-                    color = Mv.Secondary,
-                    fontSize = 11.sp,
+                    text = if (granted) "✓" else "!",
+                    color = if (granted) Mv.Watched else Color(0xFFC9302C),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
                 )
             }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = title, color = Mv.Text, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = subtitle,
+                    color = Mv.Secondary,
+                    fontSize = 11.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            SmallPillButton(text = if (granted) "✓ On" else "Turn on", active = granted) { onGrant() }
         }
     }
 }
@@ -234,11 +283,7 @@ private fun UserRow(user: VaultUser, accent: Color, onRemove: () -> Unit) {
             modifier = Modifier
                 .size(34.dp)
                 .clip(CircleShape)
-                .background(
-                    androidx.compose.ui.graphics.Brush.linearGradient(
-                        listOf(accent, accent.copy(alpha = 0.55f))
-                    )
-                ),
+                .background(Brush.linearGradient(listOf(accent, accent.copy(alpha = 0.55f)))),
             contentAlignment = Alignment.Center,
         ) {
             Text(

@@ -21,13 +21,14 @@ object InstalledApps {
                 MediaItem(
                     id = "app-${appInfo.packageName}",
                     title = label,
-                    sub = "Installed · ${sourceLabel(pm, appInfo.packageName)}",
+                    sub = sourceLabel(pm, appInfo.packageName),
                     letter = initials(label),
-                    gradient = LocalScanner.gradientFor(appInfo.packageName),
-                    tag = "INSTALLED",
-                    source = "Installed",
+                    gradient = DeviceMedia.gradientFor(appInfo.packageName),
+                    tag = "GAME",
+                    source = "Installed app",
                     category = Category.GAMES,
                     packageName = appInfo.packageName,
+                    artUri = Thumbnails.APP_ICON_SCHEME + appInfo.packageName,
                 )
             }
             .distinctBy { it.packageName }

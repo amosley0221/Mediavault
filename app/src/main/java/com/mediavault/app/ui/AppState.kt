@@ -9,10 +9,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import com.mediavault.app.data.Category
-import com.mediavault.app.data.DemoData
+import com.mediavault.app.data.DeviceMedia
 import com.mediavault.app.data.DocFile
 import com.mediavault.app.data.InstalledApps
 import com.mediavault.app.data.LocalScanner
+import com.mediavault.app.data.MediaAccess
 import com.mediavault.app.data.MediaItem
 import com.mediavault.app.data.ScanResult
 import com.mediavault.app.data.Track
@@ -25,17 +26,17 @@ import kotlinx.coroutines.withContext
 
 enum class Tab { HOME, LIBRARY, LIVE, SOURCES }
 
-/** What the in-app player was handed: a real file, or a design-catalogue title. */
+/** What the player was handed — always a real file on this device. */
 data class PlaybackTarget(
     val title: String,
     val sourceLabel: String,
-    val uri: String?,
-    val length: String,
+    val uri: String,
+    val durationMs: Long,
     val startPercent: Int,
     val itemId: String?,
 )
 
-/** Single source of truth for the whole app — screens read it, taps mutate it. */
+/** Single source of truth: the library is whatever is on the phone right now. */
 class AppState(private val context: Context) {
 
     private val store = VaultStore(context)
@@ -50,12 +51,18 @@ class AppState(private val context: Context) {
     var trackPlaying by mutableStateOf(true)
     var toast by mutableStateOf<String?>(null)
     var scanning by mutableStateOf(false)
+    var scannedOnce by mutableStateOf(false)
+
+    var hasMediaAccess by mutableStateOf(MediaAccess.hasMediaAccess(context))
+        private set
+    var hasAllFilesAccess by mutableStateOf(MediaAccess.hasAllFilesAccess())
+        private set
 
     val folders = mutableStateListOf<WatchedFolder>()
     val users = mutableStateListOf<VaultUser>()
     var connected by mutableStateOf(emptySet<String>())
     var accentIndex by mutableStateOf(0)
-    var scanned by mutableStateOf(ScanResult())
+    var library by mutableStateOf(ScanResult())
     var installedGames by mutableStateOf(emptyList<MediaItem>())
     private var progress by mutableStateOf(emptyMap<String, Int>())
 
@@ -68,17 +75,18 @@ class AppState(private val context: Context) {
         users.addAll(store.loadUsers())
         connected = store.loadConnected()
         accentIndex = store.loadAccentIndex()
-        scanned = store.loadScanned()
         progress = store.loadProgress()
     }
 
-    // ---- library ---------------------------------------------------------
+    // ---- the library -----------------------------------------------------
 
-    val games: List<MediaItem> get() = installedGames + DemoData.games
-    val movies: List<MediaItem> get() = scanned.media.filter { it.category == Category.MOVIES } + DemoData.movies
-    val shows: List<MediaItem> get() = scanned.media.filter { it.category == Category.TV } + DemoData.shows
-    val tracks: List<Track> get() = scanned.tracks + DemoData.music
-    val documents: List<DocFile> get() = scanned.documents + DemoData.files
+    val games: List<MediaItem> get() = installedGames
+    val movies: List<MediaItem>
+        get() = library.media.filter { it.category == Category.MOVIES }.sortedByDescending { it.addedAt }
+    val shows: List<MediaItem>
+        get() = library.media.filter { it.category == Category.TV }.sortedByDescending { it.addedAt }
+    val tracks: List<Track> get() = library.tracks
+    val documents: List<DocFile> get() = library.documents
 
     fun itemsFor(category: Category): List<MediaItem> = when (category) {
         Category.GAMES -> games
@@ -87,16 +95,25 @@ class AppState(private val context: Context) {
         else -> emptyList()
     }
 
-    fun progressOf(item: MediaItem): Int = progress[item.id] ?: item.progress
+    fun countFor(category: Category): Int = when (category) {
+        Category.MUSIC -> tracks.size
+        Category.FILES -> documents.size
+        else -> itemsFor(category).size
+    }
+
+    val isEmpty: Boolean get() = library.total == 0 && installedGames.isEmpty()
+
+    fun progressOf(item: MediaItem): Int = progress[item.id] ?: 0
 
     fun setProgress(id: String, percent: Int) {
         progress = progress + (id to percent.coerceIn(0, 100))
         store.saveProgress(progress)
     }
 
-    /** The Continue-watching hero: whatever was left part-way through. */
-    val continueWatching: MediaItem
-        get() = (shows + movies).firstOrNull { progressOf(it) in 1..99 } ?: DemoData.shows.first()
+    /** Anything left part-way through, newest first; otherwise the newest video on the phone. */
+    val continueWatching: MediaItem?
+        get() = (movies + shows).firstOrNull { progressOf(it) in 1..99 }
+            ?: (movies + shows).maxByOrNull { it.addedAt }
 
     // ---- navigation ------------------------------------------------------
 
@@ -109,8 +126,21 @@ class AppState(private val context: Context) {
         detail = null
     }
 
-    fun openPlayer(target: PlaybackTarget) {
-        player = target
+    fun play(item: MediaItem, episodeIndex: Int = 0) {
+        val episode = item.episodes.getOrNull(episodeIndex)
+        val uri = episode?.uri ?: item.uri ?: run {
+            showToast("No playable file for ${item.title}")
+            return
+        }
+        player = PlaybackTarget(
+            title = if (episode != null) "${item.title} · S${episode.season} E${episode.number}" else item.title,
+            sourceLabel = if (item.source == "Watched folder") "Playing from a watched folder"
+            else "Playing from ${item.folder.ifBlank { "this phone" }}",
+            uri = uri,
+            durationMs = episode?.durationMs ?: item.durationMs,
+            startPercent = progressOf(item),
+            itemId = item.id,
+        )
     }
 
     fun closePlayer(atPercent: Int) {
@@ -132,7 +162,7 @@ class AppState(private val context: Context) {
         nowPlaying = track
         trackPlaying = true
         val started = audio.play(track.uri)
-        showToast(if (started) "♪ Playing “${track.title}”" else "♪ ${track.title} — queued")
+        if (!started) showToast("Couldn't play ${track.title}")
     }
 
     fun toggleTrack() {
@@ -143,6 +173,52 @@ class AppState(private val context: Context) {
     fun stopTrack() {
         audio.release()
         nowPlaying = null
+    }
+
+    // ---- access & scanning ----------------------------------------------
+
+    fun refreshAccess() {
+        hasMediaAccess = MediaAccess.hasMediaAccess(context)
+        hasAllFilesAccess = MediaAccess.hasAllFilesAccess()
+    }
+
+    /** Re-reads the phone: MediaStore, then any hand-picked folders, then installed games. */
+    suspend fun rescan() {
+        refreshAccess()
+        scanning = true
+        try {
+            val folderSnapshot = folders.toList()
+            val result = withContext(Dispatchers.IO) {
+                val device = if (hasMediaAccess) DeviceMedia.scan(context) else ScanResult()
+                val perFolder = folderSnapshot.associate { it.uri to LocalScanner.scan(context, it.uri) }
+                device to perFolder
+            }
+            val (device, perFolder) = result
+            library = perFolder.values.fold(device) { acc, next -> acc + next }.deduped()
+
+            folderSnapshot.forEachIndexed { index, folder ->
+                val scan = perFolder[folder.uri] ?: ScanResult()
+                if (index < folders.size) {
+                    folders[index] = folder.copy(meta = "${scan.total} items · ${summarize(scan)}")
+                }
+            }
+            store.saveFolders(folders.toList())
+
+            installedGames = withContext(Dispatchers.IO) { InstalledApps.games(context) }
+        } finally {
+            scanning = false
+            scannedOnce = true
+        }
+    }
+
+    private fun summarize(result: ScanResult): String {
+        val parts = buildList {
+            if (result.media.any { it.category == Category.MOVIES }) add("video")
+            if (result.media.any { it.category == Category.TV }) add("tv")
+            if (result.tracks.isNotEmpty()) add("music")
+            if (result.documents.isNotEmpty()) add("files")
+        }
+        return if (parts.isEmpty()) "nothing found" else parts.joinToString(", ")
     }
 
     // ---- sources ---------------------------------------------------------
@@ -169,40 +245,6 @@ class AppState(private val context: Context) {
             )
         }
         showToast("✕ Stopped watching ${folder.path}")
-    }
-
-    /** Re-reads every watched folder plus the installed-games list. */
-    suspend fun rescan() {
-        scanning = true
-        try {
-            val snapshot = folders.toList()
-            val perFolder = withContext(Dispatchers.IO) {
-                snapshot.associate { folder -> folder.uri to LocalScanner.scan(context, folder.uri) }
-            }
-            val merged = perFolder.values.fold(ScanResult()) { acc, next -> acc + next }
-            scanned = merged
-            store.saveScanned(merged)
-
-            snapshot.forEachIndexed { index, folder ->
-                val result = perFolder[folder.uri] ?: ScanResult()
-                folders[index] = folder.copy(meta = "${result.total} items · ${summarize(result)}")
-            }
-            store.saveFolders(folders.toList())
-
-            installedGames = withContext(Dispatchers.IO) { InstalledApps.games(context) }
-        } finally {
-            scanning = false
-        }
-    }
-
-    private fun summarize(result: ScanResult): String {
-        val parts = buildList {
-            if (result.media.any { it.category == Category.MOVIES }) add("movies")
-            if (result.media.any { it.category == Category.TV }) add("tv")
-            if (result.tracks.isNotEmpty()) add("music")
-            if (result.documents.isNotEmpty()) add("files")
-        }
-        return if (parts.isEmpty()) "nothing found" else parts.joinToString(", ")
     }
 
     private fun readablePath(uri: Uri): String {
@@ -232,7 +274,6 @@ class AppState(private val context: Context) {
         val isOn = name in connected
         connected = if (isOn) connected - name else connected + name
         store.saveConnected(connected)
-        showToast(if (isOn) "✕ Disconnected $name" else "✓ Connected $name")
     }
 
     fun setAccent(index: Int) {
