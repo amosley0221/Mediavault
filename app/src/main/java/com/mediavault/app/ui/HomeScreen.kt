@@ -173,7 +173,7 @@ fun HomeScreen(
         if (state.games.isNotEmpty()) {
             item {
                 PosterRow(
-                    title = "Games on this phone",
+                    title = if (state.roms.isNotEmpty()) "Games & ROMs" else "Games on this phone",
                     items = state.games,
                     width = poster,
                     aspect = 3f / 4f,
@@ -293,7 +293,12 @@ private fun PosterRow(
     }
 }
 
+/** A ROM goes to its emulator; an installed game app just launches. */
 internal fun launchGame(state: AppState, context: android.content.Context, item: MediaItem) {
+    if (item.systemId != null) {
+        state.launchRom(context, item)
+        return
+    }
     val packageName = item.packageName
     when {
         packageName == null -> state.showToast("No launcher for ${item.title}")

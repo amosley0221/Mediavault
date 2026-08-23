@@ -165,6 +165,18 @@ fun MediaVaultApp(state: AppState) {
                 }
             }
 
+            state.emulatorPrompt?.let { prompt ->
+                EmulatorPickerDialog(
+                    system = prompt.system,
+                    romTitle = prompt.rom.title,
+                    currentPackage = state.emulators[prompt.system.id],
+                    onDismiss = { state.dismissEmulatorPrompt() },
+                    onPick = { packageName, remember ->
+                        state.chooseEmulator(context, prompt.system, packageName, remember)
+                    },
+                )
+            }
+
             state.toast?.let { message ->
                 LaunchedEffect(message) {
                     delay(2500)

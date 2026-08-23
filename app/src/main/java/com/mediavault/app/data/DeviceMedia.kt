@@ -41,15 +41,25 @@ object DeviceMedia {
     private val EPISODE = Regex("""(?i)^(.*?)[._\s-]+s(\d{1,2})[._\s-]?e(\d{1,3})""")
     private val YEAR = Regex("""^(.*?)[._\s(\[]+((19|20)\d{2})""")
 
+    private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "webp")
+
     private val DOC_EXTENSIONS = setOf(
         "pdf", "doc", "docx", "xls", "xlsx", "csv", "ppt", "pptx", "txt", "rtf", "md",
         "epub", "zip", "rar", "7z", "apk", "json", "odt", "ods",
     )
 
-    fun scan(context: Context): ScanResult = ScanResult(
-        media = videos(context),
-        tracks = audio(context),
-        documents = documents(context),
+    fun scan(context: Context): ScanResult {
+        val storage = otherFiles(context)
+        return ScanResult(
+            media = videos(context) + storage.roms,
+            tracks = audio(context),
+            documents = storage.documents,
+        )
+    }
+
+    private data class StorageScan(
+        val documents: List<DocFile> = emptyList(),
+        val roms: List<MediaItem> = emptyList(),
     )
 
     // ---- video -----------------------------------------------------------
@@ -208,21 +218,33 @@ object DeviceMedia {
      * walk of shared storage when the user has granted all-files access. Older versions can
      * still see them through MediaStore.Files with read permission.
      */
-    private fun documents(context: Context): List<DocFile> =
+    private fun otherFiles(context: Context): StorageScan =
         if (hasAllFilesAccess()) walkSharedStorage() else mediaStoreFiles(context)
 
     fun hasAllFilesAccess(): Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()
 
-    private fun walkSharedStorage(): List<DocFile> {
-        val root = Environment.getExternalStorageDirectory() ?: return emptyList()
-        val out = mutableListOf<DocFile>()
+    /**
+     * One pass over shared storage that picks up documents and ROMs together, and notices
+     * box art sitting next to a ROM under the same name.
+     */
+    private fun walkSharedStorage(): StorageScan {
+        val root = Environment.getExternalStorageDirectory() ?: return StorageScan()
+        val docs = mutableListOf<DocFile>()
+        val roms = mutableListOf<MediaItem>()
         val stack = ArrayDeque<Pair<File, Int>>()
         stack += root to 0
-        while (stack.isNotEmpty() && out.size < 800) {
+
+        while (stack.isNotEmpty() && docs.size + roms.size < 3000) {
             val (dir, depth) = stack.removeFirst()
-            if (depth > 5) continue
+            if (depth > 6) continue
             val children = dir.listFiles() ?: continue
+
+            // Sidecar artwork in this folder, keyed by the ROM's base name.
+            val artwork = children.asSequence()
+                .filter { it.isFile && it.extension.lowercase(Locale.US) in IMAGE_EXTENSIONS }
+                .associateBy { it.nameWithoutExtension.lowercase(Locale.US) }
+
             for (child in children) {
                 if (child.name.startsWith(".")) continue
                 if (child.isDirectory) {
@@ -231,23 +253,58 @@ object DeviceMedia {
                     continue
                 }
                 val ext = child.extension.lowercase(Locale.US)
-                if (ext !in DOC_EXTENSIONS) continue
-                out += docFile(
-                    id = "file-${child.absolutePath}",
-                    name = child.name,
-                    ext = ext,
-                    folder = child.parentFile?.name.orEmpty(),
-                    size = child.length(),
-                    modified = child.lastModified(),
-                    uri = Uri.fromFile(child).toString(),
-                    mime = null,
-                )
+                val system = if (Emulators.isRomExtension(ext)) {
+                    Emulators.systemFor(ext, child.parent.orEmpty())
+                } else null
+
+                if (system != null) {
+                    roms += rom(child, system, artwork[child.nameWithoutExtension.lowercase(Locale.US)])
+                } else if (ext in DOC_EXTENSIONS) {
+                    docs += docFile(
+                        id = "file-${child.absolutePath}",
+                        name = child.name,
+                        ext = ext,
+                        folder = child.parentFile?.name.orEmpty(),
+                        size = child.length(),
+                        modified = child.lastModified(),
+                        uri = Uri.fromFile(child).toString(),
+                        mime = null,
+                    )
+                }
             }
         }
-        return out.sortedByDescending { it.modifiedAt }
+        return StorageScan(
+            documents = docs.sortedByDescending { it.modifiedAt },
+            roms = roms.sortedBy { it.title.lowercase(Locale.US) },
+        )
     }
 
-    private fun mediaStoreFiles(context: Context): List<DocFile> {
+    private fun rom(file: File, system: GameSystem, art: File?): MediaItem {
+        val title = clean(file.nameWithoutExtension)
+        return MediaItem(
+            id = "rom-${file.absolutePath}",
+            title = title,
+            sub = listOfNotNull(system.label, formatSize(file.length())).joinToString(" · "),
+            letter = initials(title),
+            gradient = system.gradient,
+            tag = system.tag,
+            source = system.label,
+            category = Category.GAMES,
+            uri = Uri.fromFile(file).toString(),
+            sizeBytes = file.length(),
+            folder = file.parentFile?.name.orEmpty(),
+            addedAt = file.lastModified(),
+            filePath = file.absolutePath,
+            systemId = system.id,
+            artUri = art?.let { Uri.fromFile(it).toString() },
+        )
+    }
+
+    /**
+     * Without all-files access the only window onto non-media files is MediaStore.Files,
+     * which older Android versions populate for everything on the volume.
+     */
+    private fun mediaStoreFiles(context: Context): StorageScan {
         val projection = arrayOf(
             MediaStore.Files.FileColumns._ID,
             MediaStore.Files.FileColumns.DISPLAY_NAME,
@@ -256,24 +313,48 @@ object DeviceMedia {
             MediaStore.Files.FileColumns.MIME_TYPE,
         )
         val collection = MediaStore.Files.getContentUri("external")
-        val out = mutableListOf<DocFile>()
+        val docs = mutableListOf<DocFile>()
+        val roms = mutableListOf<MediaItem>()
         query(context, collection, projection, "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC") { cursor ->
             val id = cursor.getLong(MediaStore.Files.FileColumns._ID) ?: return@query
             val name = cursor.getString(MediaStore.Files.FileColumns.DISPLAY_NAME) ?: return@query
             val ext = name.substringAfterLast('.', "").lowercase(Locale.US)
-            if (ext !in DOC_EXTENSIONS) return@query
-            out += docFile(
-                id = "doc-$id",
-                name = name,
-                ext = ext,
-                folder = "",
-                size = cursor.getLong(MediaStore.Files.FileColumns.SIZE) ?: 0L,
-                modified = (cursor.getLong(MediaStore.Files.FileColumns.DATE_MODIFIED) ?: 0L) * 1000,
-                uri = ContentUris.withAppendedId(collection, id).toString(),
-                mime = cursor.getString(MediaStore.Files.FileColumns.MIME_TYPE),
-            )
+            val uri = ContentUris.withAppendedId(collection, id).toString()
+            val size = cursor.getLong(MediaStore.Files.FileColumns.SIZE) ?: 0L
+            val modified = (cursor.getLong(MediaStore.Files.FileColumns.DATE_MODIFIED) ?: 0L) * 1000
+
+            val system = if (Emulators.isRomExtension(ext)) Emulators.systemFor(ext, "") else null
+            if (system != null) {
+                val title = clean(name.substringBeforeLast('.'))
+                roms += MediaItem(
+                    id = "rom-$id",
+                    title = title,
+                    sub = listOfNotNull(system.label, formatSize(size)).joinToString(" · "),
+                    letter = initials(title),
+                    gradient = system.gradient,
+                    tag = system.tag,
+                    source = system.label,
+                    category = Category.GAMES,
+                    uri = uri,
+                    sizeBytes = size,
+                    addedAt = modified,
+                    systemId = system.id,
+                    artUri = null,
+                )
+            } else if (ext in DOC_EXTENSIONS) {
+                docs += docFile(
+                    id = "doc-$id",
+                    name = name,
+                    ext = ext,
+                    folder = "",
+                    size = size,
+                    modified = modified,
+                    uri = uri,
+                    mime = cursor.getString(MediaStore.Files.FileColumns.MIME_TYPE),
+                )
+            }
         }
-        return out
+        return StorageScan(docs, roms.sortedBy { it.title.lowercase(Locale.US) })
     }
 
     private fun docFile(

@@ -45,6 +45,10 @@ data class MediaItem(
     val year: String = "",
     val addedAt: Long = 0,
     val episodes: List<EpisodeFile> = emptyList(),
+    /** Absolute path, when the file was found by walking storage — emulators want paths. */
+    val filePath: String? = null,
+    /** [GameSystem.id] when this item is a ROM. */
+    val systemId: String? = null,
     /** Uri whose thumbnail represents this item (an episode's, for a show). */
     val artUri: String? = uri,
 )

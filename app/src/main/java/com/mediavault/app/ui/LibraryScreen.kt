@@ -111,9 +111,10 @@ private fun PosterGrid(state: AppState, unfolded: Boolean, padding: PaddingValue
 @Composable
 private fun EmptyForCategory(state: AppState, padding: PaddingValues) {
     val (title, message) = when (state.category) {
-        Category.GAMES -> "No games installed" to
-            "MediaVault lists apps this phone reports as games. Install one, or launch what you " +
-                "have from the app drawer."
+        Category.GAMES -> "No games or ROMs found" to
+            "This tab lists ROM files on the phone alongside installed games. ROMs are matched by " +
+                "extension — .gba, .smc, .nes and friends — so keep them in a folder named for the " +
+                "console, and turn on all-files access under Sources so they can be read."
         Category.TV -> "No series found" to
             "Episodes are grouped when the filename carries a season and episode number, like " +
                 "\"Show.S02E07.mkv\". Single video files show up under Movies instead."

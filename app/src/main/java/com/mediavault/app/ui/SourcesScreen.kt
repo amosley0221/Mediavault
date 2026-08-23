@@ -31,8 +31,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import com.mediavault.app.data.Category
+import com.mediavault.app.data.Emulators
+import com.mediavault.app.data.GameSystem
 import com.mediavault.app.data.MediaAccess
+import com.mediavault.app.data.Thumbnails
 import com.mediavault.app.data.VaultUser
 import com.mediavault.app.data.WatchedFolder
 import kotlinx.coroutines.launch
@@ -47,6 +55,8 @@ fun SourcesScreen(
 ) {
     val scope = rememberCoroutineScope()
     val accent = LocalAccent.current
+    val context = LocalContext.current
+    var editingSystem by remember { mutableStateOf<GameSystem?>(null) }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) scope.launch { state.addFolder(uri) }
@@ -112,6 +122,84 @@ fun SourcesScreen(
 
         item {
             Column(modifier = Modifier.padding(horizontal = Mv.Gutter)) {
+                SectionHeader(title = "Emulators")
+                Spacer(Modifier.height(10.dp))
+                if (state.romSystems.isEmpty()) {
+                    Text(
+                        text = "No ROMs found yet. MediaVault recognises them by extension — put " +
+                            "them in a folder named for the console (a \"SNES\" or \"GBA\" folder " +
+                            "under ROMs works well) and turn on all-files access, or add that " +
+                            "folder below.",
+                        color = Mv.Secondary,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                    )
+                } else {
+                    state.romSystems.forEach { system ->
+                        val chosen = state.emulators[system.id]
+                        val label = chosen?.let { Emulators.labelFor(context, it) } ?: "Ask every time"
+                        CardSurface(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { editingSystem = system },
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(gradientBrush(system.gradient)),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = system.tag.take(3),
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = system.label,
+                                        color = Mv.Text,
+                                        fontSize = 13.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                    Text(
+                                        text = "${state.romsFor(system).size} ROMs · $label",
+                                        color = Mv.Secondary,
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    text = "Change",
+                                    color = LocalAccent.current,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    Text(
+                        text = "Tapping a ROM opens it in the emulator set here. RetroArch is launched " +
+                            "with the matching core; standalone emulators are handed the file.",
+                        color = Mv.Secondary,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                    )
+                }
+            }
+        }
+
+        item {
+            Column(modifier = Modifier.padding(horizontal = Mv.Gutter)) {
                 SectionHeader(title = "Users")
                 Spacer(Modifier.height(10.dp))
                 CardSurface(modifier = Modifier.fillMaxWidth()) {
@@ -158,6 +246,19 @@ fun SourcesScreen(
                 }
             }
         }
+    }
+
+    editingSystem?.let { system ->
+        EmulatorPickerDialog(
+            system = system,
+            romTitle = null,
+            currentPackage = state.emulators[system.id],
+            onDismiss = { editingSystem = null },
+            onPick = { packageName, _ ->
+                state.setEmulator(system.id, packageName)
+                editingSystem = null
+            },
+        )
     }
 }
 

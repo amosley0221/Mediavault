@@ -61,6 +61,8 @@ object Launch {
      * A `file://` uri cannot be handed to another app, so anything found by walking storage
      * is re-issued through this app's FileProvider.
      */
+    fun contentUriFor(context: Context, uri: String): Uri? = shareableUri(context, uri)
+
     private fun shareableUri(context: Context, uri: String): Uri? {
         val parsed = runCatching { Uri.parse(uri) }.getOrNull() ?: return null
         if (parsed.scheme != "file") return parsed

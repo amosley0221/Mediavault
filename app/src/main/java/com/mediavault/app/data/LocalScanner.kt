@@ -71,7 +71,9 @@ object LocalScanner {
             val ext = name.substringAfterLast('.', "").lowercase(Locale.US)
             val uri = child.uri.toString()
             val folder = dir.name.orEmpty()
+            val system = if (Emulators.isRomExtension(ext)) Emulators.systemFor(ext, folder) else null
             when {
+                system != null -> videos += rom(name, uri, system, child.length(), child.lastModified())
                 ext in VIDEO -> addVideo(name, uri, folder, child.length(), child.lastModified(), videos, episodes)
                 ext in AUDIO -> tracks += Track(
                     id = "folder-audio-$uri",
@@ -102,6 +104,31 @@ object LocalScanner {
                 )
             }
         }
+    }
+
+    private fun rom(
+        name: String,
+        uri: String,
+        system: GameSystem,
+        size: Long,
+        modified: Long,
+    ): MediaItem {
+        val title = DeviceMedia.clean(name.substringBeforeLast('.'))
+        return MediaItem(
+            id = "folder-rom-$uri",
+            title = title,
+            sub = listOfNotNull(system.label, DeviceMedia.formatSize(size)).joinToString(" · "),
+            letter = DeviceMedia.initials(title),
+            gradient = system.gradient,
+            tag = system.tag,
+            source = system.label,
+            category = Category.GAMES,
+            uri = uri,
+            sizeBytes = size,
+            addedAt = modified,
+            systemId = system.id,
+            artUri = null,
+        )
     }
 
     private fun addVideo(

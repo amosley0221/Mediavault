@@ -18,6 +18,8 @@ object InstalledApps {
                 val appInfo = info.activityInfo?.applicationInfo ?: return@mapNotNull null
                 if (!isGame(appInfo)) return@mapNotNull null
                 val label = info.loadLabel(pm).toString()
+                // Emulators are not games — they belong to the ROMs, under Sources.
+                if (Emulators.isEmulator(appInfo.packageName, label)) return@mapNotNull null
                 MediaItem(
                     id = "app-${appInfo.packageName}",
                     title = label,

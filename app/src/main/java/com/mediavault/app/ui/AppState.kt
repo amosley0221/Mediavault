@@ -10,6 +10,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import com.mediavault.app.data.Category
 import com.mediavault.app.data.DeviceMedia
+import com.mediavault.app.data.Emulators
+import com.mediavault.app.data.GameSystem
 import com.mediavault.app.data.DocFile
 import com.mediavault.app.data.InstalledApps
 import com.mediavault.app.data.LocalScanner
@@ -21,10 +23,14 @@ import com.mediavault.app.data.VaultStore
 import com.mediavault.app.data.VaultUser
 import com.mediavault.app.data.WatchedFolder
 import com.mediavault.app.media.AudioController
+import com.mediavault.app.util.RomLauncher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 enum class Tab { HOME, LIBRARY, LIVE, SOURCES }
+
+/** A ROM waiting on the user to say which emulator should run it. */
+data class EmulatorPrompt(val rom: MediaItem, val system: GameSystem)
 
 /** What the player was handed — always a real file on this device. */
 data class PlaybackTarget(
@@ -64,6 +70,10 @@ class AppState(private val context: Context) {
     var accentIndex by mutableStateOf(0)
     var library by mutableStateOf(ScanResult())
     var installedGames by mutableStateOf(emptyList<MediaItem>())
+    var emulators by mutableStateOf(emptyMap<String, String>())
+        private set
+    /** Set when a ROM is tapped and more than one emulator could run it. */
+    var emulatorPrompt by mutableStateOf<EmulatorPrompt?>(null)
     private var progress by mutableStateOf(emptyMap<String, Int>())
 
     val accent: Color get() = Mv.AccentChoices[accentIndex.coerceIn(0, Mv.AccentChoices.lastIndex)]
@@ -76,11 +86,19 @@ class AppState(private val context: Context) {
         connected = store.loadConnected()
         accentIndex = store.loadAccentIndex()
         progress = store.loadProgress()
+        emulators = store.loadEmulators()
     }
 
     // ---- the library -----------------------------------------------------
 
-    val games: List<MediaItem> get() = installedGames
+    /** ROMs first — they are the games; installed game apps come after. */
+    val roms: List<MediaItem> get() = library.media.filter { it.category == Category.GAMES }
+    val games: List<MediaItem> get() = roms + installedGames
+
+    val romSystems: List<GameSystem>
+        get() = Emulators.systems.filter { system -> roms.any { it.systemId == system.id } }
+
+    fun romsFor(system: GameSystem): List<MediaItem> = roms.filter { it.systemId == system.id }
     val movies: List<MediaItem>
         get() = library.media.filter { it.category == Category.MOVIES }.sortedByDescending { it.addedAt }
     val shows: List<MediaItem>
@@ -141,6 +159,33 @@ class AppState(private val context: Context) {
             startPercent = progressOf(item),
             itemId = item.id,
         )
+    }
+
+    /** Hands a ROM to its emulator, asking which one only when the choice is genuinely open. */
+    fun launchRom(context: Context, rom: MediaItem) {
+        when (val result = RomLauncher.launch(context, rom, emulators[rom.systemId])) {
+            is RomLauncher.Result.Launched -> showToast("▶ ${rom.title}")
+            is RomLauncher.Result.NeedsChoice -> emulatorPrompt = EmulatorPrompt(rom, result.system)
+            is RomLauncher.Result.Failed -> showToast(result.reason)
+        }
+    }
+
+    fun chooseEmulator(context: Context, system: GameSystem, packageName: String, remember: Boolean) {
+        if (remember) setEmulator(system.id, packageName)
+        val rom = emulatorPrompt?.rom
+        emulatorPrompt = null
+        if (rom != null && !RomLauncher.launchWith(context, rom, system, packageName)) {
+            showToast("Couldn't hand ${rom.title} to that emulator")
+        }
+    }
+
+    fun setEmulator(systemId: String, packageName: String?) {
+        emulators = if (packageName == null) emulators - systemId else emulators + (systemId to packageName)
+        store.saveEmulators(emulators)
+    }
+
+    fun dismissEmulatorPrompt() {
+        emulatorPrompt = null
     }
 
     fun closePlayer(atPercent: Int) {

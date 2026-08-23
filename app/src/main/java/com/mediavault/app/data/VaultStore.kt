@@ -40,6 +40,21 @@ class VaultStore(context: Context) {
         prefs.edit().putString(KEY_CONNECTED, JSONArray(connected.toList()).toString()).apply()
     }
 
+    /** Which emulator package runs each console, keyed by [GameSystem.id]. */
+    fun loadEmulators(): Map<String, String> {
+        val raw = prefs.getString(KEY_EMULATORS, null) ?: return emptyMap()
+        return runCatching {
+            val obj = JSONObject(raw)
+            obj.keys().asSequence().associateWith { obj.getString(it) }
+        }.getOrDefault(emptyMap())
+    }
+
+    fun saveEmulators(mapping: Map<String, String>) {
+        val obj = JSONObject()
+        mapping.forEach { (system, packageName) -> obj.put(system, packageName) }
+        prefs.edit().putString(KEY_EMULATORS, obj.toString()).apply()
+    }
+
     fun loadAccentIndex(): Int = prefs.getInt(KEY_ACCENT, 0)
 
     fun saveAccentIndex(index: Int) = prefs.edit().putInt(KEY_ACCENT, index).apply()
@@ -74,6 +89,7 @@ class VaultStore(context: Context) {
         const val KEY_FOLDERS = "folders"
         const val KEY_USERS = "users"
         const val KEY_CONNECTED = "connected"
+        const val KEY_EMULATORS = "emulators"
         const val KEY_ACCENT = "accent"
         const val KEY_PROGRESS = "progress"
     }

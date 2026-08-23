@@ -39,7 +39,8 @@ object Thumbnails {
         }
 
         val parsed = runCatching { Uri.parse(uri) }.getOrNull() ?: return null
-        val bitmap = loadThumbnail(context, parsed, width, height)
+        val bitmap = decodeImageFile(parsed, width)
+            ?: loadThumbnail(context, parsed, width, height)
             ?: loadAlbumArt(context, parsed)
             ?: extractFrame(context, parsed)
 
@@ -50,6 +51,22 @@ object Thumbnails {
     private fun appIcon(context: Context, packageName: String): Bitmap? = runCatching {
         context.packageManager.getApplicationIcon(packageName).toBitmap(192, 192)
     }.getOrNull()
+
+    /** Box art sitting next to a ROM is a plain image file, not a media-store entry. */
+    private fun decodeImageFile(uri: Uri, targetWidth: Int): Bitmap? {
+        if (uri.scheme != "file") return null
+        val path = uri.path ?: return null
+        if (path.substringAfterLast('.', "").lowercase(java.util.Locale.US) !in IMAGE_EXTENSIONS) return null
+        return runCatching {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(path, bounds)
+            var sample = 1
+            while (bounds.outWidth / sample > targetWidth * 2 && sample < 16) sample *= 2
+            BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = sample })
+        }.getOrNull()
+    }
+
+    private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "webp")
 
     private fun loadThumbnail(context: Context, uri: Uri, width: Int, height: Int): Bitmap? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
