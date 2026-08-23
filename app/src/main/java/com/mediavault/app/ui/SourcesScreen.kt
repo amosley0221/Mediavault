@@ -39,7 +39,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.mediavault.app.data.Category
 import com.mediavault.app.data.FolderRule
 import com.mediavault.app.data.LibraryFolder
-import com.mediavault.app.data.VideoFolder
+import com.mediavault.app.data.MediaFolder
 import com.mediavault.app.data.Emulators
 import com.mediavault.app.data.GameSystem
 import com.mediavault.app.data.MediaAccess
@@ -61,7 +61,7 @@ fun SourcesScreen(
     val context = LocalContext.current
     var editingSystem by remember { mutableStateOf<GameSystem?>(null) }
     var pickingFor by remember { mutableStateOf<Category?>(null) }
-    var sortingFolder by remember { mutableStateOf<VideoFolder?>(null) }
+    var sortingFolder by remember { mutableStateOf<Pair<MediaFolder, Boolean>?>(null) }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) scope.launch { state.addFolder(uri) }
@@ -116,9 +116,8 @@ fun SourcesScreen(
                 SectionHeader(title = "Video folders")
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "Every folder on the phone that holds video. Sort each one into Movies " +
-                        "or TV, or hide it — that is how camera clips and WhatsApp videos stop " +
-                        "filling the library.",
+                    text = "Nothing is in the library until you put it there. Assign a folder to " +
+                        "Movies or TV and its videos appear; leave it alone and they never do.",
                     color = Mv.Secondary,
                     fontSize = 11.sp,
                     lineHeight = 16.sp,
@@ -132,10 +131,34 @@ fun SourcesScreen(
                     )
                 } else {
                     state.videoFolders.forEach { folder ->
-                        VideoFolderRow(
+                        MediaFolderRow(
                             folder = folder,
                             rule = state.ruleFor(folder),
-                        ) { sortingFolder = folder }
+                            unit = "video",
+                        ) { sortingFolder = folder to true }
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+            }
+        }
+
+        item {
+            Column(modifier = Modifier.padding(horizontal = Mv.Gutter)) {
+                SectionHeader(title = "Music folders")
+                Spacer(Modifier.height(10.dp))
+                if (state.audioFolders.isEmpty()) {
+                    Text(
+                        text = if (state.scanning) "Scanning…" else "No music folders found yet.",
+                        color = Mv.Secondary,
+                        fontSize = 11.sp,
+                    )
+                } else {
+                    state.audioFolders.forEach { folder ->
+                        MediaFolderRow(
+                            folder = folder,
+                            rule = state.ruleFor(folder),
+                            unit = "track",
+                        ) { sortingFolder = folder to false }
                         Spacer(Modifier.height(8.dp))
                     }
                 }
@@ -367,10 +390,12 @@ fun SourcesScreen(
         }
     }
 
-    sortingFolder?.let { folder ->
+    sortingFolder?.let { (folder, isVideo) ->
         FolderRuleDialog(
             folder = folder,
             current = state.ruleFor(folder),
+            options = if (isVideo) listOf(FolderRule.MOVIES, FolderRule.TV, FolderRule.NONE)
+            else listOf(FolderRule.MUSIC, FolderRule.NONE),
             onDismiss = { sortingFolder = null },
             onPick = { rule ->
                 sortingFolder = null
@@ -394,9 +419,10 @@ fun SourcesScreen(
 }
 
 @Composable
-private fun VideoFolderRow(
-    folder: VideoFolder,
+private fun MediaFolderRow(
+    folder: MediaFolder,
     rule: FolderRule,
+    unit: String,
     onClick: () -> Unit,
 ) {
     CardSurface(modifier = Modifier.fillMaxWidth(), onClick = onClick) {
@@ -407,14 +433,14 @@ private fun VideoFolderRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = folder.name.ifBlank { folder.path },
-                    color = if (rule == FolderRule.HIDDEN) Mv.Secondary else Mv.Text,
+                    color = if (rule == FolderRule.NONE) Mv.Secondary else Mv.Text,
                     fontSize = 13.5.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "${folder.count} video${if (folder.count == 1) "" else "s"} · /${folder.path}",
+                    text = "${folder.count} $unit${if (folder.count == 1) "" else "s"} · /${folder.path}",
                     color = Mv.Secondary,
                     fontSize = 11.sp,
                     maxLines = 1,
@@ -424,7 +450,7 @@ private fun VideoFolderRow(
             Spacer(Modifier.width(10.dp))
             Text(
                 text = rule.label,
-                color = if (rule == FolderRule.AUTO) Mv.Secondary else LocalAccent.current,
+                color = if (rule == FolderRule.NONE) Mv.Secondary else LocalAccent.current,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -434,8 +460,9 @@ private fun VideoFolderRow(
 
 @Composable
 private fun FolderRuleDialog(
-    folder: VideoFolder,
+    folder: MediaFolder,
     current: FolderRule,
+    options: List<FolderRule>,
     onDismiss: () -> Unit,
     onPick: (FolderRule) -> Unit,
 ) {
@@ -455,13 +482,13 @@ private fun FolderRuleDialog(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "${folder.count} videos · /${folder.path}",
+                text = "${folder.count} files · /${folder.path}",
                 color = Mv.Secondary,
                 fontSize = 12.sp,
             )
             Spacer(Modifier.height(16.dp))
 
-            FolderRule.entries.forEach { rule ->
+            options.forEach { rule ->
                 CardSurface(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { onPick(rule) },
@@ -479,10 +506,10 @@ private fun FolderRuleDialog(
                             )
                             Text(
                                 text = when (rule) {
-                                    FolderRule.AUTO -> "Let the filename decide"
+                                    FolderRule.NONE -> "Keep these out of the library"
                                     FolderRule.MOVIES -> "List these under Movies"
-                                    FolderRule.TV -> "List these under TV"
-                                    FolderRule.HIDDEN -> "Keep these out of the library"
+                                    FolderRule.TV -> "List these under TV, grouped into series"
+                                    FolderRule.MUSIC -> "List these under Music"
                                 },
                                 color = Mv.Secondary,
                                 fontSize = 11.sp,

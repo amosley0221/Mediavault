@@ -15,8 +15,10 @@ data class ScanResult(
     val media: List<MediaItem> = emptyList(),
     val tracks: List<Track> = emptyList(),
     val documents: List<DocFile> = emptyList(),
-    /** Every folder holding videos — including ones currently filtered out of the library. */
-    val videoFolders: List<VideoFolder> = emptyList(),
+    /** Every folder holding video, including ones not part of the library. */
+    val videoFolders: List<MediaFolder> = emptyList(),
+    /** Every folder holding music, including ones not part of the library. */
+    val audioFolders: List<MediaFolder> = emptyList(),
 ) {
     val total: Int get() = media.size + tracks.size + documents.size
 
@@ -24,9 +26,8 @@ data class ScanResult(
         media + other.media,
         tracks + other.tracks,
         documents + other.documents,
-        (videoFolders + other.videoFolders)
-            .groupBy { it.path }
-            .map { (path, group) -> VideoFolder(path, group.first().name, group.sumOf { it.count }) },
+        mergeFolders(videoFolders, other.videoFolders),
+        mergeFolders(audioFolders, other.audioFolders),
     )
 
     /** Same file found by two scanners (MediaStore and a watched folder) shows up once. */
@@ -35,7 +36,12 @@ data class ScanResult(
         tracks.distinctBy { it.uri },
         documents.distinctBy { it.uri },
         videoFolders.sortedByDescending { it.count },
+        audioFolders.sortedByDescending { it.count },
     )
+
+    private fun mergeFolders(a: List<MediaFolder>, b: List<MediaFolder>) = (a + b)
+        .groupBy { it.path }
+        .map { (path, group) -> MediaFolder(path, group.first().name, group.sumOf { it.count }) }
 }
 
 /**
@@ -49,7 +55,8 @@ data class ScanResult(
 data class VideoFilters(
     val movies: List<String> = emptyList(),
     val tv: List<String> = emptyList(),
-    /** Folder path → [FolderRule] name, set by hand in Sources. Beats everything else. */
+    val music: List<String> = emptyList(),
+    /** Folder path → [FolderRule] name, set by hand in Sources. */
     val rules: Map<String, String> = emptyMap(),
 ) {
     /** The rule for a folder, inherited by anything nested inside it. */
@@ -61,8 +68,8 @@ data class VideoFilters(
                 target.isNotBlank() && (normalised == target || normalised.startsWith("$target/"))
             }
             .maxByOrNull { it.length }
-            ?: return FolderRule.AUTO
-        return runCatching { FolderRule.valueOf(rules.getValue(match)) }.getOrDefault(FolderRule.AUTO)
+            ?: return FolderRule.NONE
+        return runCatching { FolderRule.valueOf(rules.getValue(match)) }.getOrDefault(FolderRule.NONE)
     }
 
     private fun matches(folders: List<String>, path: String): Boolean {
@@ -74,17 +81,18 @@ data class VideoFilters(
         }
     }
 
-    /** The category this path is pinned to, or null when it is in neither folder. */
-    fun categoryFor(path: String): Category? = when {
-        matches(tv, path) -> Category.TV
-        matches(movies, path) -> Category.MOVIES
-        else -> null
-    }
-
-    fun hasFilterFor(category: Category): Boolean = when (category) {
-        Category.TV -> tv.isNotEmpty()
-        Category.MOVIES -> movies.isNotEmpty()
-        else -> false
+    /**
+     * Which category a folder's files belong to, or null when the folder has not been
+     * assigned — in which case its files stay out of the library entirely.
+     */
+    fun categoryFor(path: String): Category? {
+        ruleFor(path).category?.let { return it }
+        return when {
+            matches(tv, path) -> Category.TV
+            matches(movies, path) -> Category.MOVIES
+            matches(music, path) -> Category.MUSIC
+            else -> null
+        }
     }
 }
 
@@ -103,11 +111,13 @@ object DeviceMedia {
     fun scan(context: Context, filters: VideoFilters = VideoFilters()): ScanResult {
         val storage = otherFiles(context)
         val videos = videos(context, filters)
+        val tracks = audio(context, filters)
         return ScanResult(
             media = videos + storage.roms,
-            tracks = audio(context),
+            tracks = tracks,
             documents = storage.documents,
             videoFolders = videoFolderCensus,
+            audioFolders = audioFolderCensus,
         )
     }
 
@@ -135,7 +145,7 @@ object DeviceMedia {
         }
 
         val singles = mutableListOf<MediaItem>()
-        val folderCounts = mutableMapOf<String, VideoFolder>()
+        val folderCounts = mutableMapOf<String, MediaFolder>()
         val shows = mutableMapOf<String, MutableList<EpisodeFile>>()
         val showArt = mutableMapOf<String, String>()
         val showAdded = mutableMapOf<String, Long>()
@@ -155,7 +165,7 @@ object DeviceMedia {
             val folderPath = relativePath ?: dataPath?.substringBeforeLast('/').orEmpty().ifBlank { folder }
 
             val normalisedFolder = folderPath.trim('/')
-            folderCounts[normalisedFolder.lowercase(Locale.US)] = VideoFolder(
+            folderCounts[normalisedFolder.lowercase(Locale.US)] = MediaFolder(
                 path = normalisedFolder,
                 name = folder.ifBlank { normalisedFolder.substringAfterLast('/') },
                 count = (folderCounts[normalisedFolder.lowercase(Locale.US)]?.count ?: 0) + 1,
@@ -164,19 +174,12 @@ object DeviceMedia {
             val base = name.substringBeforeLast('.')
             val episode = EPISODE.find(base)
 
-            // Order of authority: a rule the user set on the folder, then a folder they
-            // designated for a category, then the filename. Anything outside a configured
-            // folder is dropped from that category entirely.
-            val rule = filters.ruleFor(normalisedFolder)
-            if (rule == FolderRule.HIDDEN) return@query
-            val pinned = when (rule) {
-                FolderRule.MOVIES -> Category.MOVIES
-                FolderRule.TV -> Category.TV
-                else -> filters.categoryFor(folderPath)
-            }
-            val natural = if (episode != null) Category.TV else Category.MOVIES
-            val category = pinned ?: natural
-            if (pinned == null && filters.hasFilterFor(category)) return@query
+            // Categories are opt-in: a video only enters the library if its folder was
+            // assigned to Movies or TV. Within a TV folder the filename still splits
+            // episodes into series.
+            val assigned = filters.categoryFor(normalisedFolder) ?: return@query
+            if (assigned != Category.MOVIES && assigned != Category.TV) return@query
+            val category = assigned
 
             if (episode != null && category == Category.TV) {
                 val show = clean(episode.groupValues[1])
@@ -247,12 +250,13 @@ object DeviceMedia {
         return singles + showItems
     }
 
-    /** Filled by the video pass so Sources can list folders even when they are filtered out. */
-    private var videoFolderCensus: List<VideoFolder> = emptyList()
+    /** Filled by the scan so Sources can list folders even when they are not in the library. */
+    private var videoFolderCensus: List<MediaFolder> = emptyList()
 
     // ---- audio -----------------------------------------------------------
 
-    private fun audio(context: Context): List<Track> {
+    @Suppress("DEPRECATION")
+    private fun audio(context: Context, filters: VideoFilters): List<Track> {
         val projection = mutableListOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
@@ -261,12 +265,15 @@ object DeviceMedia {
             MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.ALBUM_ID,
             MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media.DATA,
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             projection += MediaStore.Audio.Media.BUCKET_DISPLAY_NAME
+            projection += MediaStore.Audio.Media.RELATIVE_PATH
         }
 
         val tracks = mutableListOf<Track>()
+        val folderCounts = mutableMapOf<String, MediaFolder>()
         query(context, MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection.toTypedArray(),
             "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC",
             selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0") { cursor ->
@@ -281,6 +288,17 @@ object DeviceMedia {
             val duration = cursor.getLong(MediaStore.Audio.Media.DURATION) ?: 0L
             val folder = cursor.getString(MediaStore.Audio.Media.BUCKET_DISPLAY_NAME).orEmpty()
             val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id).toString()
+            val dataPath = cursor.getString(MediaStore.Audio.Media.DATA)
+            val relativePath = cursor.getString(MediaStore.Audio.Media.RELATIVE_PATH)
+            val folderPath = (relativePath ?: dataPath?.substringBeforeLast('/').orEmpty()
+                .ifBlank { folder }).trim('/')
+            val key = folderPath.lowercase(Locale.US)
+            folderCounts[key] = MediaFolder(
+                path = folderPath,
+                name = folder.ifBlank { folderPath.substringAfterLast('/') },
+                count = (folderCounts[key]?.count ?: 0) + 1,
+            )
+            if (filters.categoryFor(folderPath) != Category.MUSIC) return@query
 
             tracks += Track(
                 id = "audio-$id",
@@ -296,8 +314,11 @@ object DeviceMedia {
                 gradient = gradientFor(album.ifBlank { title }),
             )
         }
+        audioFolderCensus = folderCounts.values.sortedByDescending { it.count }
         return tracks
     }
+
+    private var audioFolderCensus: List<MediaFolder> = emptyList()
 
     // ---- documents -------------------------------------------------------
 

@@ -25,7 +25,7 @@ import com.mediavault.app.data.Track
 import com.mediavault.app.data.VaultStore
 import com.mediavault.app.data.VaultUser
 import com.mediavault.app.data.VideoFilters
-import com.mediavault.app.data.VideoFolder
+import com.mediavault.app.data.MediaFolder
 import com.mediavault.app.data.WatchedFolder
 import com.mediavault.app.media.AudioController
 import com.mediavault.app.util.RomLauncher
@@ -356,18 +356,29 @@ class AppState(private val context: Context) {
     private fun videoFilters() = VideoFilters(
         movies = libraryFolders.filter { it.category == Category.MOVIES }.map { it.path },
         tv = libraryFolders.filter { it.category == Category.TV }.map { it.path },
+        music = libraryFolders.filter { it.category == Category.MUSIC }.map { it.path },
         rules = folderRules,
     )
 
-    /** Every folder holding videos, busiest first — what Sources lists for sorting. */
-    val videoFolders: List<VideoFolder> get() = library.videoFolders
+    /** Folders holding video and music, busiest first — what Sources lists for sorting. */
+    val videoFolders: List<MediaFolder> get() = library.videoFolders
+    val audioFolders: List<MediaFolder> get() = library.audioFolders
 
-    fun ruleFor(folder: VideoFolder): FolderRule =
-        videoFilters().ruleFor(folder.path)
+    /** True once at least one folder feeds this category. */
+    /** No folder feeds Movies, TV or Music yet — the library cannot have anything in it. */
+    val hasNoSources: Boolean
+        get() = !hasSourceFor(Category.MOVIES) && !hasSourceFor(Category.TV) &&
+            !hasSourceFor(Category.MUSIC) && folders.isEmpty()
 
-    /** Files in this folder are Movies, TV, hidden, or left to the filename. */
-    suspend fun setFolderRule(folder: VideoFolder, rule: FolderRule) {
-        folderRules = if (rule == FolderRule.AUTO) folderRules - folder.path
+    fun hasSourceFor(category: Category): Boolean =
+        folderRules.values.any { runCatching { FolderRule.valueOf(it) }.getOrNull()?.category == category } ||
+            libraryFolders.any { it.category == category }
+
+    fun ruleFor(folder: MediaFolder): FolderRule = videoFilters().ruleFor(folder.path)
+
+    /** Assigns a folder to a category, or takes it back out of the library. */
+    suspend fun setFolderRule(folder: MediaFolder, rule: FolderRule) {
+        folderRules = if (rule == FolderRule.NONE) folderRules - folder.path
         else folderRules + (folder.path to rule.name)
         store.saveFolderRules(folderRules)
         rescan()

@@ -113,17 +113,23 @@ private fun PosterGrid(state: AppState, unfolded: Boolean, padding: PaddingValue
 
 @Composable
 private fun EmptyForCategory(state: AppState, padding: PaddingValues) {
-    val (title, message) = when (state.category) {
+    val needsFolder = state.category in setOf(Category.MOVIES, Category.TV) &&
+        !state.hasSourceFor(state.category)
+    val (title, message) = if (needsFolder) {
+        "No ${state.category.label.lowercase()} folder chosen" to
+            "MediaVault only lists what you point it at. Open Sources, find the folder your " +
+                "${state.category.label.lowercase()} live in, and assign it — everything else on " +
+                "the phone stays out."
+    } else when (state.category) {
         Category.GAMES -> "No games or ROMs found" to
             "This tab lists ROM files on the phone alongside installed games. ROMs are matched by " +
                 "extension — .gba, .smc, .nes and friends — so keep them in a folder named for the " +
                 "console, and turn on all-files access under Sources so they can be read."
-        Category.TV -> "No series found" to
-            "Episodes are grouped when the filename carries a season and episode number, like " +
-                "\"Show.S02E07.mkv\". Single video files show up under Movies instead."
-        else -> "No videos found" to
-            "Nothing in this phone's video library yet. Add a folder under Sources if your files " +
-                "live on an SD card or in a folder the system does not index."
+        Category.TV -> "No series in that folder" to
+            "Episodes group into a series when the filename carries a season and episode " +
+                "number, like \"Show.S02E07.mkv\"."
+        else -> "No videos in that folder" to
+            "The folder you assigned holds no video MediaVault can read."
     }
     Column(modifier = Modifier.padding(horizontal = Mv.Gutter).padding(top = 8.dp)) {
         EmptyCard(
@@ -140,9 +146,16 @@ private fun MusicList(state: AppState, padding: PaddingValues) {
     if (state.tracks.isEmpty()) {
         Column(modifier = Modifier.padding(horizontal = Mv.Gutter).padding(top = 8.dp)) {
             EmptyCard(
-                title = if (state.scanning) "Scanning…" else "No music found",
-                message = "No audio files turned up on this phone. Anything you download or copy " +
-                    "into Music, Downloads or a watched folder shows up here.",
+                title = when {
+                    state.scanning -> "Scanning…"
+                    !state.hasSourceFor(Category.MUSIC) -> "No music folder chosen"
+                    else -> "No music in that folder"
+                },
+                message = if (state.hasSourceFor(Category.MUSIC))
+                    "The folder you assigned holds no audio MediaVault can read."
+                else
+                    "Open Sources and assign the folder your music lives in. Nothing is listed " +
+                        "here until you do.",
                 primaryLabel = "Open Sources",
                 onPrimary = { state.tab = Tab.SOURCES },
             )

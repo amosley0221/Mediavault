@@ -89,18 +89,29 @@ data class ServiceDef(
     val packageHint: String? = null,
 )
 
-/** A folder on the phone that holds videos, with how many it holds. */
-data class VideoFolder(val path: String, val name: String, val count: Int)
+/** A folder on the phone that holds media, with how many files it holds. */
+data class MediaFolder(val path: String, val name: String, val count: Int)
 
-/** What a folder's videos count as. AUTO leaves it to the filename. */
-enum class FolderRule { AUTO, MOVIES, TV, HIDDEN;
+/**
+ * What a folder's contents count as. NONE is the default and means the folder is not part
+ * of the library — categories are opt-in, so nothing appears until a folder is assigned.
+ */
+enum class FolderRule { NONE, MOVIES, TV, MUSIC;
 
     val label: String
         get() = when (this) {
-            AUTO -> "Auto"
+            NONE -> "Not shown"
             MOVIES -> "Movies"
             TV -> "TV"
-            HIDDEN -> "Hidden"
+            MUSIC -> "Music"
+        }
+
+    val category: Category?
+        get() = when (this) {
+            NONE -> null
+            MOVIES -> Category.MOVIES
+            TV -> Category.TV
+            MUSIC -> Category.MUSIC
         }
 }
 

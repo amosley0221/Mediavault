@@ -64,13 +64,13 @@ fun HomeScreen(
                     onPrimary = onRequestAccess,
                 )
             }
-        } else if (state.isEmpty && state.scannedOnce) {
+        } else if (state.hasNoSources && state.scannedOnce) {
             item {
                 EmptyCard(
-                    title = if (state.scanning) "Scanning…" else "Nothing found yet",
-                    message = "No videos, music or documents turned up in this phone's media store. " +
-                        "If your files live somewhere else — an SD card, a downloads folder, a USB " +
-                        "drive — add that folder under Sources.",
+                    title = if (state.scanning) "Scanning…" else "Choose your folders",
+                    message = "MediaVault lists only what you point it at. Open Sources and assign " +
+                        "the folders your movies, series and music live in — everything else on " +
+                        "the phone stays out of the library.",
                     modifier = Modifier.padding(horizontal = Mv.Gutter),
                     primaryLabel = "Open Sources",
                     onPrimary = { state.tab = Tab.SOURCES },
