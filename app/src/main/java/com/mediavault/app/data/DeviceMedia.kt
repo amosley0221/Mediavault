@@ -209,7 +209,10 @@ object DeviceMedia {
                     ).joinToString(" · "),
                     letter = initials(title),
                     gradient = gradientFor(title),
-                    tag = folder.uppercase(Locale.US).take(10).ifBlank { "VIDEO" },
+                    // No pill on a video cover — the category it sits under already says
+                    // what it is, and the folder is on the line beneath. Only ROMs keep a
+                    // pill, because theirs names the console.
+                    tag = null,
                     source = "This phone",
                     category = category,
                     uri = uri,
@@ -234,7 +237,7 @@ object DeviceMedia {
                     "$seasons season${if (seasons == 1) "" else "s"}",
                 letter = initials(title),
                 gradient = gradientFor(title),
-                tag = "SERIES",
+                tag = null,
                 source = "This phone",
                 category = Category.TV,
                 uri = sorted.first().uri,
