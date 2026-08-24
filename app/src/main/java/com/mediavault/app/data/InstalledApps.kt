@@ -55,7 +55,9 @@ object InstalledApps {
                     ).joinToString(" · "),
                     letter = initials(label),
                     gradient = DeviceMedia.gradientFor(packageName),
-                    tag = if (manual) "ADDED" else "GAME",
+                    // No tag on an installed game — the section it sits in already says so.
+                    // ROMs keep theirs, because that pill names the console.
+                    tag = null,
                     source = installedFrom,
                     category = Category.GAMES,
                     packageName = packageName,
