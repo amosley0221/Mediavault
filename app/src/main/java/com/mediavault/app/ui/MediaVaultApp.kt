@@ -99,9 +99,12 @@ fun MediaVaultApp(state: AppState) {
             val detail = state.detail
             val player = state.player
 
+            // Big Picture handles its own back press.
             BackHandler(
-                enabled = player != null || detail != null || state.showAddGame ||
-                    state.showGameStats || state.tab != Tab.HOME
+                enabled = !state.bigPicture && (
+                    player != null || detail != null || state.showAddGame ||
+                        state.showGameStats || state.tab != Tab.HOME
+                )
             ) {
                 when {
                     player != null -> state.closePlayer(player.startPercent)
@@ -119,7 +122,14 @@ fun MediaVaultApp(state: AppState) {
                     (if (state.nowPlaying != null) MINI_PLAYER_HEIGHT else 0.dp),
             )
 
-            if (player != null) {
+            if (state.bigPicture) {
+                BigPictureScreen(
+                    items = state.games,
+                    state = state,
+                    onLaunch = { game -> launchGame(state, context, game) },
+                    onExit = { state.bigPicture = false },
+                )
+            } else if (player != null) {
                 PlayerScreen(state, player)
             } else if (state.showAddGame) {
                 AddGameScreen(state, contentPadding)

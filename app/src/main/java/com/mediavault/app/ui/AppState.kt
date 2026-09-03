@@ -95,6 +95,8 @@ class AppState(private val context: Context) {
     var gameSort by mutableStateOf(GameSort.MOST_PLAYED)
     var showAddGame by mutableStateOf(false)
     var showGameStats by mutableStateOf(false)
+    /** Full-screen, controller-friendly shelf. */
+    var bigPicture by mutableStateOf(false)
     var favorites by mutableStateOf(emptySet<String>())
         private set
     var manualGames by mutableStateOf(emptySet<String>())

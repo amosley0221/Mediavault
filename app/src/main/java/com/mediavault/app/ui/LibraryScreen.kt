@@ -65,8 +65,16 @@ fun LibraryScreen(
                     background = Mv.Card,
                     foreground = LocalAccent.current,
                     fontSize = 15,
-                    modifier = Modifier.padding(end = Mv.Gutter),
+                    modifier = Modifier.padding(end = 8.dp),
                 ) { state.showGameStats = true }
+                CircleGlyphButton(
+                    glyph = "⛶",
+                    size = 36.dp,
+                    background = Mv.Card,
+                    foreground = LocalAccent.current,
+                    fontSize = 15,
+                    modifier = Modifier.padding(end = Mv.Gutter),
+                ) { state.bigPicture = true }
             }
         }
         val listPadding = PaddingValues(
